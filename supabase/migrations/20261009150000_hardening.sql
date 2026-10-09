@@ -17,13 +17,11 @@ revoke execute on function public.is_staff() from anon;
 revoke execute on function public.is_admin() from anon;
 
 -- Avalia auth.uid() uma vez por consulta, e não uma vez por linha
-drop policy "profiles: equipe consulta" on public.profiles;
-create policy "profiles: equipe consulta" on public.profiles
-  for select to authenticated using ((select public.is_staff()) or id = (select auth.uid()));
+-- (alter policy mantém as regras; só muda a forma de avaliação)
+alter policy "profiles: equipe consulta" on public.profiles
+  using ((select public.is_staff()) or id = (select auth.uid()));
 
-drop policy "profiles: próprio usuário ou admin altera" on public.profiles;
-create policy "profiles: próprio usuário ou admin altera" on public.profiles
-  for update to authenticated
+alter policy "profiles: próprio usuário ou admin altera" on public.profiles
   using (id = (select auth.uid()) or (select public.is_admin()))
   with check (id = (select auth.uid()) or (select public.is_admin()));
 

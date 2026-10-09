@@ -50,6 +50,9 @@ Produtos e fornecedores são arquivados (`archived_at`); o privilégio de DELETE
 ### ADR-07 · "Pronto para publicar" exige cadastro completo
 Constraint `products_ready_requires_complete` impede os status `pronto`/`publicado` sem nome comercial, marca, EAN ou código, NCM, dimensões e peso. Na fase 5 os requisitos por canal (fotos, título, preço) passam a ser verificados por anúncio.
 
+### ADR-09 · Avisos aceitos do Security Advisor
+`is_staff()` e `is_admin()` são `SECURITY DEFINER` e executáveis por usuários autenticados (aviso 0029 do Supabase). É intencional: as políticas RLS dependem delas e elas só respondem sobre o próprio usuário logado (verdadeiro/falso), sem expor dados. O anônimo não pode executá-las, e as funções de gatilho não são chamáveis pela API (migração 0003).
+
 ### ADR-08 · Concorrência otimista
 A atualização de produto compara `updated_at`; se outra pessoa salvou antes, a gravação é recusada com aviso para recarregar.
 
