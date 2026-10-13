@@ -7,7 +7,7 @@ import { formatNumber } from '@/lib/format'
 import { friendlyDbError } from '@/lib/supabase'
 import { parseBrDecimal } from '@/lib/domain/numbers'
 import type { ProductAttribute, ValidationStatus } from '@/lib/database.types'
-import { addAttribute, listAttributes, removeAttribute, setAttributeStatus } from './api'
+import { addAttribute, listAttributes, listSources, removeAttribute, setAttributeStatus } from './api'
 
 export const VALIDATION_LABEL: Record<ValidationStatus, string> = {
   encontrada: 'Encontrada',
@@ -36,6 +36,10 @@ export function AttributesPanel({ productId }: { productId: string }) {
   const [label, setLabel] = useState('')
   const [value, setValue] = useState('')
   const [unit, setUnit] = useState('')
+  const [sourceId, setSourceId] = useState('')
+  const [state, setState] = useState<ValidationStatus>('confirmada')
+  const sources = useQuery({ queryKey: ['sources', productId], queryFn: () => listSources(productId) })
+  const sourceTitle = new Map((sources.data ?? []).map((x) => [x.id, x]))
   const [error, setError] = useState<string | null>(null)
   const invalidate = () => qc.invalidateQueries({ queryKey: ['attributes', productId] })
 
@@ -46,9 +50,10 @@ export function AttributesPanel({ productId }: { productId: string }) {
       return addAttribute({
         product_id: productId, attr_key: toAttrKey(label), label: label.trim(),
         value_text: num === null ? value.trim() : null, value_num: num, unit: unit.trim() || null, notes: null,
+        research_source_id: sourceId || null, validation_status: state,
       })
     },
-    onSuccess: () => { setLabel(''); setValue(''); setUnit(''); setError(null); invalidate(); toast('Atributo adicionado.') },
+    onSuccess: () => { setLabel(''); setValue(''); setUnit(''); setSourceId(''); setState('confirmada'); setError(null); invalidate(); toast('Atributo adicionado.') },
     onError: (e: Error) => setError(friendlyDbError(e)),
   })
   const status = useMutation({
@@ -78,7 +83,7 @@ export function AttributesPanel({ productId }: { productId: string }) {
         {list.isPending ? <Spinner /> : list.isError ? (
           <div className="p-4"><ErrorState message={friendlyDbError(list.error)} onRetry={() => list.refetch()} /></div>
         ) : list.data.length === 0 ? (
-          <EmptyState title="Nenhum atributo adicional" description="Características específicas da categoria, como número de compartimentos ou tipo de alça. Nas próximas fases, catálogos e pesquisas também vão sugerir valores aqui, sempre com a fonte." />
+          <EmptyState title="Nenhum atributo adicional" description="Características específicas da categoria, como número de compartimentos ou tipo de alça. Valores aprovados nos catálogos aparecem aqui com a página de origem; os que você pesquisar podem apontar para uma fonte." />
         ) : (
           <table className="w-full text-sm">
             <thead className="bg-sunk text-left text-xs text-muted">
@@ -98,6 +103,12 @@ export function AttributesPanel({ productId }: { productId: string }) {
                   <td className="px-3 py-2">
                     {SOURCE_LABEL[a.source] ?? a.source}
                     {a.source_ref && <div className="max-w-48 truncate text-xs text-muted" title={a.source_ref}>{a.source_ref}</div>}
+                    {a.research_source_id && sourceTitle.get(a.research_source_id) && (() => {
+                      const src = sourceTitle.get(a.research_source_id)!
+                      return src.url
+                        ? <a href={src.url} target="_blank" rel="noreferrer noopener" className="block max-w-48 truncate text-xs text-accent hover:underline" title={src.title}>{src.title}</a>
+                        : <div className="max-w-48 truncate text-xs text-muted" title={src.title}>{src.title}</div>
+                    })()}
                   </td>
                   <td className="px-3 py-2">
                     <div className="flex items-center gap-2">
@@ -134,6 +145,17 @@ export function AttributesPanel({ productId }: { productId: string }) {
           <Field label="Valor" htmlFor="attr_value"><Input id="attr_value" value={value} onChange={(e) => setValue(e.target.value)} /></Field>
           <Field label="Unidade" htmlFor="attr_unit"><Input id="attr_unit" value={unit} onChange={(e) => setUnit(e.target.value)} /></Field>
         </div>
+        <Field label="Fonte" htmlFor="attr_source" hint={sources.data?.length ? undefined : 'Cadastre fontes na aba Fontes.'}>
+          <Select id="attr_source" value={sourceId} onChange={(e) => setSourceId(e.target.value)}>
+            <option value="">Digitado por mim (sem fonte externa)</option>
+            {sources.data?.map((x) => <option key={x.id} value={x.id}>{x.title}</option>)}
+          </Select>
+        </Field>
+        <Field label="Estado" htmlFor="attr_state">
+          <Select id="attr_state" value={state} onChange={(e) => setState(e.target.value as ValidationStatus)}>
+            {(['confirmada', 'encontrada', 'aguardando_revisao', 'divergente'] as const).map((k) => <option key={k} value={k}>{VALIDATION_LABEL[k]}</option>)}
+          </Select>
+        </Field>
         <Button type="submit" variant="primary" loading={add.isPending}>Adicionar</Button>
       </form>
     </div>

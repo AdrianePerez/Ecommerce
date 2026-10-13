@@ -1,3 +1,6 @@
+import { GalleryPage } from '@/modules/images/GalleryPage'
+import { ListingsPage } from '@/modules/listings/ListingsPage'
+import { ListingEditPage } from '@/modules/listings/ListingEditPage'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
@@ -77,6 +80,9 @@ export default function App() {
                 <Route path="catalogos/novo" element={<UploadCatalogPage />} />
                 <Route path="catalogos/:id" element={<CatalogDetailPage />} />
                 <Route path="catalogos/:id/paginas/:n" element={<PageReviewPage />} />
+                <Route path="preparacao" element={<ListingsPage />} />
+                <Route path="preparacao/:id" element={<ListingEditPage />} />
+                <Route path="imagens" element={<GalleryPage />} />
                 <Route path="configuracoes" element={<SettingsPage />} />
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Route>

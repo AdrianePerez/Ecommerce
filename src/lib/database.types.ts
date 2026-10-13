@@ -105,6 +105,7 @@ export interface ProductAttribute {
   unit: string | null
   source: DataSource
   source_ref: string | null
+  research_source_id: string | null
   confidence: Num | null
   validation_status: ValidationStatus
   notes: string | null

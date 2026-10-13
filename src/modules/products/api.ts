@@ -172,11 +172,53 @@ export async function listAttributes(productId: string) {
 }
 
 export async function addAttribute(
-  row: Pick<ProductAttribute, 'product_id' | 'attr_key' | 'label' | 'value_text' | 'value_num' | 'unit' | 'notes'>,
+  row: Pick<ProductAttribute, 'product_id' | 'attr_key' | 'label' | 'value_text' | 'value_num' | 'unit' | 'notes'>
+    & { research_source_id?: string | null; validation_status?: ProductAttribute['validation_status'] },
 ) {
+  const { research_source_id, validation_status, ...rest } = row
   const { error } = await supabase
     .from('product_attributes')
-    .insert({ ...row, source: 'manual', validation_status: 'confirmada' })
+    .insert({
+      ...rest, research_source_id: research_source_id ?? null,
+      source: research_source_id ? 'pesquisa' : 'manual', validation_status: validation_status ?? 'confirmada',
+    })
+  if (error) throw error
+}
+
+// ---------------------------------------------------------------------
+// Fontes de pesquisa
+// ---------------------------------------------------------------------
+export type SourceType = 'fabricante' | 'catalogo_oficial' | 'distribuidor' | 'marketplace' | 'loja' | 'outro'
+export interface ResearchSource {
+  id: string
+  product_id: string
+  source_type: SourceType
+  title: string
+  url: string | null
+  accessed_on: string
+  accessible: boolean
+  notes: string | null
+  created_at: string
+}
+export type ResearchSourceInput = Pick<ResearchSource, 'source_type' | 'title' | 'url' | 'accessed_on' | 'accessible' | 'notes'>
+
+export async function listSources(productId: string) {
+  const { data, error } = await supabase.from('product_research_sources').select('*')
+    .eq('product_id', productId).order('accessed_on', { ascending: false }).order('created_at', { ascending: false })
+  if (error) throw error
+  return (data ?? []) as ResearchSource[]
+}
+
+export async function saveSource(productId: string, input: ResearchSourceInput, id?: string) {
+  const q = id
+    ? supabase.from('product_research_sources').update(input).eq('id', id)
+    : supabase.from('product_research_sources').insert({ ...input, product_id: productId })
+  const { error } = await q
+  if (error) throw error
+}
+
+export async function deleteSource(id: string) {
+  const { error } = await supabase.from('product_research_sources').delete().eq('id', id)
   if (error) throw error
 }
 

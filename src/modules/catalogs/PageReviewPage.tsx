@@ -357,9 +357,13 @@ function ItemPanel({
     mutationFn: async () => {
       if (!item || !target) throw new Error('Escolha o produto do cadastro.')
       const crop = item.bbox && imageUrl ? await cropImage(imageUrl, item.bbox) : null
-      await approveItem(item, target.id, [...useCatalog], crop)
+      return approveItem(item, target.id, [...useCatalog], crop)
     },
-    onSuccess: () => { onApproved(); toast('Aprovado. Dados aplicados no produto (somente campos vazios e as substituições escolhidas).') },
+    onSuccess: (r) => {
+      onApproved()
+      toast('Aprovado. Dados aplicados no produto (somente campos vazios e as substituições escolhidas); o recorte foi para a galeria do produto.')
+      if (r.galleryWarning) toast(r.galleryWarning, 'bad')
+    },
     onError: (e: Error) => toast(friendlyDbError(e), 'bad'),
   })
 
@@ -461,7 +465,7 @@ function ItemPanel({
         {approved && <p className="text-sm text-good">Aprovado e aplicado no produto. <Link to={`/produtos/${item!.product_id}`} className="underline">Abrir produto</Link></p>}
       </div>
 
-      <ProductPicker open={picker} onClose={() => setPicker(false)} reasonRequired={false} confirmLabel="Escolher"
+      <ProductPicker open={picker} onClose={() => setPicker(false)} reasonRequired={false} confirmLabel="Escolher" title="Escolher produto" itemPrefix="Item do catálogo"
         itemLabel={`${item?.code ?? ''} ${item?.name ?? ''}`}
         onPick={(p) => { if (p) { setTarget(p); setUseCatalog(new Set()) } setPicker(false) }} />
     </div>

@@ -118,3 +118,18 @@ Itens marcados ficam "aguardando revisão". A aprovação acontece só pela fun�
 
 ### ADR-19 · Leitura automática com IA (pendente)
 Como as páginas são imagens achatadas (sem texto além dos preços), a extração automática exige um modelo com visão, rodando numa Edge Function com a chave da Anthropic como segredo. Resultado sempre entra como "aguardando revisão".
+
+### ADR-20 · Galeria: original preservado, versões como novas imagens
+`product_images` guarda o arquivo exatamente como enviado (bucket privado `product-images`) e uma miniatura `_t.jpg` gerada no navegador (o plano gratuito não tem transformação de imagens). O tipo é conferido pelos bytes, não pela extensão; SHA-256 por produto impede duplicata. Versão tratada (Canva) é outra linha com `parent_image_id`; trocar o arquivo de uma imagem é bloqueado. Imagem aprovada não pode ser excluída. A principal precisa estar aprovada e sem "uso não autorizado" (constraint).
+
+### ADR-21 · Direito de uso
+Toda imagem tem `rights` (a verificar, autorizada, material do fornecedor, foto própria, não autorizada). Padrão "a verificar": achar a imagem na internet não autoriza uso comercial. Recortes de catálogo entram como "material do fornecedor", a revisar.
+
+### ADR-22 · Importar imagem por link
+Feito na Edge Function `importar-imagem` (o navegador seria bloqueado por CORS). Exige usuário ativo da equipe (`is_staff`), aceita só http(s) nas portas padrão, recusa endereços internos (inclusive após resolução DNS e em cada redirecionamento, máx. 3), 20 s e 15 MB. Devolve os bytes; o navegador grava com as mesmas regras do upload.
+
+### ADR-23 · Anúncios separados do cadastro mestre
+`product_listings` guarda o que é do canal (título, descrição, categoria, atributos, palavras-chave, preço, imagens). As regras ficam em `marketplace_configs`, editáveis por administrador, com data da última conferência. `listing_issues()` calcula as pendências no banco; um gatilho impede marcar "pronto para publicar"/"publicado" com pendências (validação no servidor, a tela só mostra). Nada é publicado automaticamente.
+
+### ADR-24 · Textos sugeridos sem IA
+Título e descrição sugeridos são montados por regra fixa (`listingModel.ts`) só com campos do cadastro e atributos **confirmados**; o título retira partes opcionais para caber no limite do canal. A geração com IA, quando ligada, seguirá a mesma regra de usar só dados confirmados ou marcar como sugestão.

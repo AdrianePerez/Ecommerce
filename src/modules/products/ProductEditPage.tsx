@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, Plus } from 'lucide-react'
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useForm } from 'react-hook-form'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { clsx } from 'clsx'
 import { Badge, Button, Card, ErrorState, Field, Input, PageHeader, Select, Spinner, Textarea } from '@/components/ui'
 import { useToast } from '@/components/ui/toast'
@@ -23,6 +23,21 @@ import { IdentifiersPanel } from './IdentifiersPanel'
 import { AttributesPanel } from './AttributesPanel'
 import { HistoryPanel } from './HistoryPanel'
 import { CostHistoryPanel, CostSummaryCard } from './CostPanel'
+import { SourcesPanel } from './SourcesPanel'
+import { ProductImagesPanel } from '@/modules/images/ProductImagesPanel'
+import { CommercialSheetPanel, ProductListingsPanel } from '@/modules/listings/ProductPanels'
+
+const TABS = [
+  ['custos', 'Custos e compras'],
+  ['imagens', 'Imagens'],
+  ['ficha', 'Ficha comercial'],
+  ['anuncios', 'Anúncios'],
+  ['atributos', 'Atributos adicionais'],
+  ['fontes', 'Fontes'],
+  ['identificadores', 'Identificadores'],
+  ['historico', 'Histórico de alterações'],
+] as const
+type Tab = (typeof TABS)[number][0]
 
 const SOURCE_LABEL: Record<string, string> = {
   manual: 'digitado manualmente', nfe: 'nota fiscal (XML)', catalogo: 'catálogo do fornecedor', pesquisa: 'pesquisa',
@@ -45,7 +60,9 @@ function ProductEditor({ product }: { product: Product | null }) {
   const navigate = useNavigate()
   const qc = useQueryClient()
   const toast = useToast()
-  const [tab, setTab] = useState<'custos' | 'identificadores' | 'atributos' | 'historico'>('custos')
+  const [params, setParams] = useSearchParams()
+  const tab: Tab = (TABS.find(([k]) => k === params.get('aba'))?.[0]) ?? 'custos'
+  const setTab = (k: Tab) => setParams((p) => { p.set('aba', k); return p }, { replace: true })
   const [supplierModal, setSupplierModal] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
 
@@ -285,27 +302,22 @@ function ProductEditor({ product }: { product: Product | null }) {
                 ))}
               </ul>
             )}
-            <p className="mt-3 text-xs text-muted">Fotos, título e preço entram nas próximas fases.</p>
+            <p className="mt-3 text-xs text-muted">Fotos, textos e anúncios ficam nas abas abaixo.</p>
           </Card>
         </aside>
       </div>
 
       {product && (
         <section className="mt-6">
-          <div className="mb-3 flex gap-1 border-b border-line" role="tablist">
-            {([
-              ['custos', 'Custos e compras'],
-              ['identificadores', 'Identificadores'],
-              ['atributos', 'Atributos adicionais'],
-              ['historico', 'Histórico de alterações'],
-            ] as const).map(([k, l]) => (
+          <div className="mb-3 flex gap-1 overflow-x-auto border-b border-line" role="tablist">
+            {TABS.map(([k, l]) => (
               <button
                 key={k}
                 role="tab"
                 aria-selected={tab === k}
                 onClick={() => setTab(k)}
                 className={clsx(
-                  '-mb-px border-b-2 px-3 py-2 text-sm',
+                  '-mb-px shrink-0 border-b-2 px-3 py-2 text-sm whitespace-nowrap',
                   tab === k ? 'border-accent font-medium text-ink' : 'border-transparent text-muted hover:text-ink',
                 )}
               >
@@ -317,6 +329,10 @@ function ProductEditor({ product }: { product: Product | null }) {
           {tab === 'identificadores' && <IdentifiersPanel productId={product.id} />}
           {tab === 'atributos' && <AttributesPanel productId={product.id} />}
           {tab === 'historico' && <HistoryPanel productId={product.id} />}
+          {tab === 'imagens' && <ProductImagesPanel product={product} />}
+          {tab === 'ficha' && <CommercialSheetPanel product={product} />}
+          {tab === 'anuncios' && <ProductListingsPanel product={product} />}
+          {tab === 'fontes' && <SourcesPanel productId={product.id} />}
         </section>
       )}
 

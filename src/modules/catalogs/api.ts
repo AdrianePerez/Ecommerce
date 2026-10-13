@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase'
+import { importCatalogCrop, pendingCatalogCrops } from '@/modules/images/api'
 import type { BBox } from './pageModel'
 
 export type CatalogStatus = 'enviando' | 'aguardando_processamento' | 'em_processamento' | 'processado'
@@ -227,6 +228,17 @@ export async function approveItem(item: CatalogItem, productId: string, override
   }
   const { error } = await supabase.rpc('approve_catalog_item', { p_item_id: item.id, p_product_id: productId, p_overrides: overrides })
   if (error) throw error
+  // O recorte também entra na galeria do produto (para revisão). Falha aqui não desfaz a aprovação.
+  if (crop) {
+    try {
+      const crops = await pendingCatalogCrops(productId)
+      const mine = crops.find((c) => c.id === item.id)
+      if (mine) await importCatalogCrop(productId, mine)
+    } catch (e) {
+      return { galleryWarning: `Aprovado, mas o recorte não entrou na galeria: ${(e as Error).message}` }
+    }
+  }
+  return { galleryWarning: null as string | null }
 }
 
 export async function getProductBasics(id: string) {

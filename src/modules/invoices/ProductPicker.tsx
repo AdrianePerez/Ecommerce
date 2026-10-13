@@ -15,6 +15,7 @@ type Picked = { id: string; name: string }
  */
 export function ProductPicker({
   open, onClose, onPick, itemLabel, suggestions = [], reasonRequired = true, allowUnlink = false, confirmLabel = 'Vincular',
+  title = 'Vincular a um produto', itemPrefix = 'Item da nota',
 }: {
   open: boolean
   onClose: () => void
@@ -24,6 +25,9 @@ export function ProductPicker({
   reasonRequired?: boolean
   allowUnlink?: boolean
   confirmLabel?: string
+  title?: string
+  /** Texto antes do itemLabel; vazio esconde a linha */
+  itemPrefix?: string
 }) {
   const [text, setText] = useState('')
   const [term, setTerm] = useState('')
@@ -71,7 +75,7 @@ export function ProductPicker({
     <Modal
       open={open}
       onClose={onClose}
-      title="Vincular a um produto"
+      title={title}
       wide
       footer={
         <>
@@ -82,7 +86,7 @@ export function ProductPicker({
       }
     >
       <div className="flex flex-col gap-4">
-        <p className="text-sm text-muted">Item da nota: <strong className="text-ink">{itemLabel}</strong></p>
+        {itemPrefix && <p className="text-sm text-muted">{itemPrefix}: <strong className="text-ink">{itemLabel}</strong></p>}
         {error && <ErrorState message={error} />}
 
         {suggestions.length > 0 && (
