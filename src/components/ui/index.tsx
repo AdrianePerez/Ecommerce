@@ -1,5 +1,9 @@
 // Componentes de interface reutilizáveis.
-import { clsx } from 'clsx'
+import { clsx, type ClassValue } from 'clsx'
+import { twMerge } from 'tailwind-merge'
+
+/** Junta classes e deixa as passadas por último substituírem as padrão (ex.: w-24 vence w-full). */
+export const cn = (...c: ClassValue[]) => twMerge(clsx(c))
 import { AlertTriangle, Inbox, Loader2, X } from 'lucide-react'
 import {
   forwardRef, useEffect, useRef, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode,
@@ -19,7 +23,7 @@ export function Button({ variant = 'secondary', size = 'md', loading, className,
     <button
       {...rest}
       disabled={disabled || loading}
-      className={clsx(
+      className={cn(
         'inline-flex items-center justify-center gap-1.5 rounded-md font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-55',
         size === 'sm' ? 'h-8 px-2.5 text-[13px]' : 'h-9 px-3.5 text-sm',
         variant === 'primary' && 'bg-accent text-white hover:bg-accent-hover',
@@ -42,13 +46,13 @@ const fieldBase =
   'w-full rounded-md border border-line bg-surface px-2.5 text-sm text-ink placeholder:text-muted/70 focus:border-accent focus:outline-none disabled:bg-sunk aria-[invalid=true]:border-bad'
 
 export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(
-  ({ className, ...rest }, ref) => <input ref={ref} {...rest} className={clsx(fieldBase, 'h-9', className)} />,
+  ({ className, ...rest }, ref) => <input ref={ref} {...rest} className={cn(fieldBase, 'h-9', className)} />,
 )
 Input.displayName = 'Input'
 
 export const Select = forwardRef<HTMLSelectElement, SelectHTMLAttributes<HTMLSelectElement>>(
   ({ className, children, ...rest }, ref) => (
-    <select ref={ref} {...rest} className={clsx(fieldBase, 'h-9 pr-8', className)}>
+    <select ref={ref} {...rest} className={cn(fieldBase, 'h-9 pr-8', className)}>
       {children}
     </select>
   ),
@@ -56,7 +60,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectHTMLAttributes<HTMLSel
 Select.displayName = 'Select'
 
 export const Textarea = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<HTMLTextAreaElement>>(
-  ({ className, ...rest }, ref) => <textarea ref={ref} {...rest} className={clsx(fieldBase, 'min-h-20 py-2', className)} />,
+  ({ className, ...rest }, ref) => <textarea ref={ref} {...rest} className={cn(fieldBase, 'min-h-20 py-2', className)} />,
 )
 Textarea.displayName = 'Textarea'
 

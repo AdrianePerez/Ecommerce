@@ -216,9 +216,9 @@ function ProductEditor({ product }: { product: Product | null }) {
               <Field label="Material" htmlFor="material"><Input {...fieldProps('material')} /></Field>
               <Field label="Cor" htmlFor="color"><Input {...fieldProps('color')} /></Field>
               <Field label="Capacidade" htmlFor="capacity_value" error={errors.capacity_value?.message ?? errors.capacity_unit?.message}>
-                <div className="flex gap-2">
-                  <Input {...fieldProps('capacity_value')} inputMode="decimal" className="tabular flex-1" />
-                  <Select {...register('capacity_unit')} aria-label="Unidade da capacidade" className="w-24">
+                <div className="grid grid-cols-[minmax(0,1fr)_96px] gap-2">
+                  <Input {...fieldProps('capacity_value')} inputMode="decimal" className="tabular" placeholder="Ex.: 20" />
+                  <Select {...register('capacity_unit')} aria-label="Unidade da capacidade">
                     <option value="">—</option>
                     {CAPACITY_UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
                   </Select>
