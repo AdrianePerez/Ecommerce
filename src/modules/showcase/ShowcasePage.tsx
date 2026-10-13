@@ -7,7 +7,7 @@ import { formatBRL, formatDateTime } from '@/lib/format'
 import { PRODUCT_STATUSES, PRODUCT_STATUS_LABEL } from '@/lib/domain/product'
 import { friendlyDbError } from '@/lib/supabase'
 import type { ProductStatus } from '@/lib/database.types'
-import { signedImageUrls } from '@/modules/images/api'
+import { productThumbs, signedImageUrls } from '@/modules/images/api'
 import { thumbOf } from '@/modules/images/imageModel'
 import { listMarketplaces } from '@/modules/listings/api'
 import { LISTING_STATUS_LABEL, LISTING_STATUS_TONE, type ListingStatus } from '@/modules/listings/listingModel'
@@ -43,10 +43,24 @@ export function ShowcasePage() {
   const rules = useQuery({ queryKey: ['pricing-rules', 'all'], queryFn: () => listPricingRules() })
   const options = useQuery({ queryKey: ['product-filter-options'], queryFn: listFilterOptions })
   const suppliers = useQuery({ queryKey: ['suppliers'], queryFn: () => listSuppliers() })
+  // Foto: a principal do anúncio; senão a principal do produto; senão a primeira aprovada (ou em revisão)
   const thumbs = useQuery({
-    queryKey: ['showcase-thumbs', rows.map((r) => r.main_image_path).join(',')],
-    queryFn: () => signedImageUrls(rows.filter((r) => r.main_image_path).map((r) => thumbOf(r.main_image_path!))),
-    enabled: rows.some((r) => r.main_image_path), staleTime: 50 * 60 * 1000,
+    queryKey: ['showcase-thumbs', rows.map((r) => `${r.row_id}:${r.listing_image_path ?? r.main_image_path ?? ''}`).join(',')],
+    queryFn: async () => {
+      const own = rows.filter((r) => r.listing_image_path || r.main_image_path)
+      const [urls, fallback] = await Promise.all([
+        signedImageUrls(own.map((r) => thumbOf((r.listing_image_path ?? r.main_image_path)!))),
+        productThumbs([...new Set(rows.filter((r) => !r.listing_image_path && !r.main_image_path).map((r) => r.product_id))]),
+      ])
+      const out = new Map<string, string>()
+      for (const r of rows) {
+        const path = r.listing_image_path ?? r.main_image_path
+        const url = path ? urls.get(thumbOf(path)) : fallback.get(r.product_id)?.url
+        if (url) out.set(r.row_id, url)
+      }
+      return out
+    },
+    enabled: rows.length > 0, staleTime: 50 * 60 * 1000,
   })
 
   const set = <K extends keyof ShowcaseFilters>(k: K, v: ShowcaseFilters[K]) => { setFilters((f) => ({ ...f, [k]: v })); setPage(0) }
@@ -109,7 +123,7 @@ export function ShowcasePage() {
           <EmptyState title="Nada encontrado" description="Ajuste a busca ou os filtros. Produtos sem anúncio aparecem uma vez; com anúncios, uma linha por canal." />
         ) : view === 'grade' ? (
           <ul className="grid grid-cols-2 gap-3 p-3 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6">
-            {rows.map((r) => <Card key={r.row_id} r={r} rules={rules.data} thumb={r.main_image_path ? thumbs.data?.get(thumbOf(r.main_image_path)) : undefined} />)}
+            {rows.map((r) => <Card key={r.row_id} r={r} rules={rules.data} thumb={thumbs.data?.get(r.row_id)} />)}
           </ul>
         ) : (
           <Table rows={rows} rules={rules.data} thumbs={thumbs.data} />
@@ -197,7 +211,7 @@ function Table({ rows, rules, thumbs }: { rows: ShowcaseRow[]; rules?: PricingRu
           </tr>
         </thead>
         <tbody>
-          {rows.map((r) => <TableRow key={r.row_id} r={r} rules={rules} thumb={r.main_image_path ? thumbs?.get(thumbOf(r.main_image_path)) : undefined} />)}
+          {rows.map((r) => <TableRow key={r.row_id} r={r} rules={rules} thumb={thumbs?.get(r.row_id)} />)}
         </tbody>
       </table>
     </div>

@@ -35,6 +35,8 @@ export interface ShowcaseRow {
   pricing_rule_id: string | null
   shipping_cost: number | null
   updated_at: string
+  /** imagem principal escolhida no anúncio */
+  listing_image_path: string | null
 }
 
 export interface ShowcaseFilters {
