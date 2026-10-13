@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { Badge, Button, Card, ErrorState, Field, Input, PageHeader, Select, Spinner, Textarea, cn } from '@/components/ui'
 import { roundUpTo90 } from '@/lib/domain/pricing'
-import { lastAppliedSimulation, listPricingRules, ruleWarnings, saveSimulation, simulate } from '@/modules/pricing/api'
+import { chargesShipping, lastAppliedSimulation, listPricingRules, ruleWarnings, saveSimulation, shippingMissing, simulate } from '@/modules/pricing/api'
 import { BreakdownTable, EstimateNote } from '@/modules/pricing/components'
 import { useToast } from '@/components/ui/toast'
 import { parseBrDecimal } from '@/lib/domain/numbers'
@@ -308,11 +308,15 @@ function Editor({ listing, market, assetIds }: { listing: Listing; market: Marke
               {rule && ruleWarnings(rule).length > 0 && (
                 <p className="rounded-md bg-warn-soft px-3 py-2 text-xs text-warn">Regra incompleta: {ruleWarnings(rule).join(', ')}. Ajuste em Precificação → Regras por canal.</p>
               )}
-              {rule?.shipping_min_price != null || rule?.shipping_fee ? (
-                <Field label="Frete por sua conta neste anúncio (R$)" htmlFor="l_ship" hint={`Vazio = ${formatBRL(rule?.shipping_fee ?? 0)} da regra`}>
-                  <Input id="l_ship" inputMode="decimal" className="tabular" value={form.shipping} onChange={(e) => set('shipping', e.target.value)} />
-                </Field>
-              ) : null}
+              <Field label="Frete por sua conta neste anúncio (R$)" htmlFor="l_ship"
+                hint={rule && chargesShipping(rule)
+                  ? `Consulte no ${market.name} para este produto (depende de peso, medidas e preço)${rule.shipping_min_price != null ? `; cobrado a partir de ${formatBRL(rule.shipping_min_price)}` : ''}.`
+                  : 'Este canal não cobra frete do vendedor na regra escolhida.'}>
+                <Input id="l_ship" inputMode="decimal" className="tabular" value={form.shipping} onChange={(e) => set('shipping', e.target.value)} placeholder="0,00" />
+              </Field>
+              {rule && shippingMissing(rule, shippingNum, priceNum) && (
+                <p className="rounded-md bg-warn-soft px-3 py-2 text-xs text-warn">Informe o frete deste produto: sem ele a margem fica maior do que a real.</p>
+              )}
               <Field label={`Preço de venda${req('price') ? ' *' : ''}`} htmlFor="l_price">
                 <Input id="l_price" inputMode="decimal" className="tabular" value={form.price} onChange={(e) => set('price', e.target.value)} placeholder="0,00" />
               </Field>

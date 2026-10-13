@@ -11,7 +11,7 @@ import { signedImageUrls } from '@/modules/images/api'
 import { thumbOf } from '@/modules/images/imageModel'
 import { listMarketplaces } from '@/modules/listings/api'
 import { LISTING_STATUS_LABEL, LISTING_STATUS_TONE, type ListingStatus } from '@/modules/listings/listingModel'
-import { listPricingRules, simulate, type PricingRule } from '@/modules/pricing/api'
+import { listPricingRules, shippingMissing, simulate, type PricingRule } from '@/modules/pricing/api'
 import { marginTone, pct } from '@/modules/pricing/components'
 import { listFilterOptions } from '@/modules/products/api'
 import { listSuppliers } from '@/modules/settings/api'
@@ -127,7 +127,8 @@ function useMargin(r: ShowcaseRow, rules: PricingRule[] | undefined) {
     const rule = rules.find((x) => x.id === r.pricing_rule_id) ?? rules.find((x) => x.marketplace_id === r.marketplace_id && x.is_active)
     if (!rule) return null
     const s = simulate(rule, Number(r.average_unit_cost), Number(r.suggested_price), { shipping: r.shipping_cost })
-    return { margin: s.result.marginPct, target: s.target, profit: s.result.profit }
+    return { margin: s.result.marginPct, target: s.target, profit: s.result.profit,
+      noShipping: shippingMissing(rule, r.shipping_cost, Number(r.suggested_price)) }
   }, [r, rules])
 }
 
@@ -167,7 +168,8 @@ function Card({ r, rules, thumb }: { r: ShowcaseRow; rules?: PricingRule[]; thum
         <dl className="mt-1 grid grid-cols-[auto_1fr] gap-x-2 gap-y-0.5">
           <dt className="text-muted">Custo</dt><dd className="tabular text-right">{formatBRL(r.average_unit_cost)}</dd>
           <dt className="text-muted">Preço</dt><dd className="tabular text-right font-medium">{formatBRL(r.suggested_price)}</dd>
-          <dt className="text-muted">Margem</dt><dd className={cn('tabular text-right', marginTone(m?.margin, m?.target))}>{m ? pct(m.margin) : '—'}</dd>
+          <dt className="text-muted">Margem</dt><dd className={cn('tabular text-right', marginTone(m?.margin, m?.target))}>{m ? pct(m.margin) : '—'}
+            {m?.noShipping && <span className="block text-[11px] text-warn" title="Frete não informado no anúncio: a margem real é menor">sem frete</span>}</dd>
         </dl>
         <div className="mt-auto flex items-center justify-between pt-1.5" title={c.missing.length ? `Falta: ${c.missing.join(', ')}` : 'Completo'}>
           <Completeness r={r} />
@@ -222,7 +224,8 @@ function TableRow({ r, rules, thumb }: { r: ShowcaseRow; rules?: PricingRule[]; 
       </td>
       <td className="tabular px-3 py-2 text-right">{formatBRL(r.average_unit_cost)}</td>
       <td className="tabular px-3 py-2 text-right font-medium">{formatBRL(r.suggested_price)}</td>
-      <td className={cn('tabular px-3 py-2 text-right', marginTone(m?.margin, m?.target))}>{m ? pct(m.margin) : '—'}</td>
+      <td className={cn('tabular px-3 py-2 text-right', marginTone(m?.margin, m?.target))}>{m ? pct(m.margin) : '—'}
+        {m?.noShipping && <span className="block text-[11px] text-warn" title="Frete não informado no anúncio: a margem real é menor">sem frete</span>}</td>
       <td className="px-3 py-2"><Completeness r={r} /></td>
       <td className="tabular px-3 py-2 whitespace-nowrap text-muted">{formatDateTime(r.updated_at)}</td>
     </tr>

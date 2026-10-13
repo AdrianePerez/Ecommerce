@@ -42,8 +42,17 @@ export function ruleWarnings(r: PricingRule) {
   const w: string[] = []
   if (n(r.tax_pct) === 0) w.push('impostos não informados')
   if (n(r.packaging_cost) === 0) w.push('embalagem não informada')
-  if (r.shipping_min_price != null && n(r.shipping_fee) === 0) w.push('frete por conta do vendedor não informado')
   return w
+}
+
+/** O vendedor paga frete neste canal (o valor real é informado por anúncio/simulação). */
+export const chargesShipping = (r: PricingRule) => r.shipping_min_price != null || n(r.shipping_fee) > 0
+
+/** Falta informar o frete para este preço (canal cobra frete e não há valor nem padrão). */
+export function shippingMissing(r: PricingRule, shipping: number | null | undefined, price: number | null) {
+  if (shipping != null || n(r.shipping_fee) > 0) return false
+  if (r.shipping_min_price == null) return false
+  return price == null || price >= n(r.shipping_min_price)
 }
 
 export const ruleLabel = (r: Pick<PricingRule, 'name' | 'marketplace'>) => `${r.marketplace.name} · ${r.name}`

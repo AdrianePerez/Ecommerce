@@ -109,8 +109,8 @@ export function RuleFormModal({ open, base, markets, onClose }: {
           </fieldset>
 
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <Field label="Frete por sua conta (R$)" htmlFor="r_ship" hint="Valor médio por venda"><Input id="r_ship" className="tabular" inputMode="decimal" value={f.shipping_fee} onChange={(e) => set('shipping_fee', e.target.value)} /></Field>
-            <Field label="Frete a partir de (R$)" htmlFor="r_shipmin" hint="Vazio = sempre"><Input id="r_shipmin" className="tabular" inputMode="decimal" value={f.shipping_min_price} onChange={(e) => set('shipping_min_price', e.target.value)} /></Field>
+            <Field label="Frete padrão (R$)" htmlFor="r_ship" hint="Opcional: o frete real é digitado por produto"><Input id="r_ship" className="tabular" inputMode="decimal" value={f.shipping_fee} onChange={(e) => set('shipping_fee', e.target.value)} /></Field>
+            <Field label="Você paga frete a partir de (R$)" htmlFor="r_shipmin" hint="Vazio = canal não cobra"><Input id="r_shipmin" className="tabular" inputMode="decimal" value={f.shipping_min_price} onChange={(e) => set('shipping_min_price', e.target.value)} /></Field>
             <Field label="Outras taxas do canal (%)" htmlFor="r_extra"><Input id="r_extra" className="tabular" inputMode="decimal" value={f.extra_pct} onChange={(e) => set('extra_pct', e.target.value)} /></Field>
             <Field label="Impostos sobre a venda (%)" htmlFor="r_tax"><Input id="r_tax" className="tabular" inputMode="decimal" value={f.tax_pct} onChange={(e) => set('tax_pct', e.target.value)} /></Field>
             <Field label="Embalagem (R$)" htmlFor="r_pack"><Input id="r_pack" className="tabular" inputMode="decimal" value={f.packaging_cost} onChange={(e) => set('packaging_cost', e.target.value)} /></Field>

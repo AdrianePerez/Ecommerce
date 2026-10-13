@@ -13,7 +13,7 @@ import { ProductList } from './ProductList'
 import { getCostSummary } from '@/modules/invoices/api'
 import { listMarketplaces, listProductListings } from '@/modules/listings/api'
 import {
-  applyPriceToListing, listPricingRules, listSimulations, ruleLabel, ruleWarnings, saveSimulation, simulate, type PricingRule,
+  applyPriceToListing, chargesShipping, listPricingRules, shippingMissing, listSimulations, ruleLabel, ruleWarnings, saveSimulation, simulate, type PricingRule,
 } from './api'
 import { BreakdownTable, EstimateNote, marginTone, pct } from './components'
 import { RuleFormModal } from './RuleFormModal'
@@ -108,6 +108,7 @@ function Simulator() {
                   <th className="w-8" />
                   <th className="px-3 py-2 font-medium">Canal · regra</th>
                   <th className="px-3 py-2 text-right font-medium">Preço mínimo p/ margem</th>
+                  <th className="px-3 py-2 font-medium">Frete (R$)</th>
                   <th className="px-3 py-2 font-medium">Preço simulado</th>
                   <th className="px-3 py-2 text-right font-medium">Lucro</th>
                   <th className="px-3 py-2 text-right font-medium">Margem</th>
@@ -139,7 +140,9 @@ function RuleRow({ rule, productId, cost, costSource, target, listing }: {
   const qc = useQueryClient()
   const toast = useToast()
   const [open, setOpen] = useState(false)
-  const shipping = listing?.shipping_cost ?? null
+  const [ship, setShip] = useState('')
+  useEffect(() => { setShip(listing?.shipping_cost != null ? show(listing.shipping_cost) : '') }, [listing?.shipping_cost])
+  const shipping = ship.trim() ? parse(ship) : null
   const base = simulate(rule, cost, 1, { shipping, target: target ?? undefined })
   const min = base.min.price
   const [price, setPrice] = useState('')
@@ -150,7 +153,7 @@ function RuleRow({ rule, productId, cost, costSource, target, listing }: {
 
   const save = useMutation({
     mutationFn: (apply: boolean) => apply
-      ? applyPriceToListing({ listingId: listing!.id, productId, rule, cost, price: p!, shipping: shipping ?? undefined, target: target ?? undefined })
+      ? applyPriceToListing({ listingId: listing!.id, productId, rule, cost, price: p!, shipping, target: target ?? undefined })
       : saveSimulation({ productId, rule, cost, costSource, price: p!, shipping, target: target ?? undefined }),
     onSuccess: (_, apply) => {
       qc.invalidateQueries({ queryKey: ['simulations', productId] })
@@ -181,6 +184,12 @@ function RuleRow({ rule, productId, cost, costSource, target, listing }: {
           ) : <span className="text-xs text-bad">{base.min.reason}</span>}
           <div className="text-xs text-muted">margem {pct(base.target)}</div>
         </td>
+        <td className="px-3 py-2.5">
+          <Input aria-label={`Frete ${ruleLabel(rule)}`} className="tabular h-8 w-24" inputMode="decimal" value={ship} onChange={(e) => setShip(e.target.value)}
+            placeholder={Number(rule.shipping_fee) > 0 ? show(rule.shipping_fee) : '0,00'} />
+          {shippingMissing(rule, shipping, p) && <div className="mt-0.5 text-xs text-warn">informe o frete</div>}
+          {ship.trim() && shipping == null && <div className="mt-0.5 text-xs text-bad">valor inválido</div>}
+        </td>
         <td className="px-3 py-2.5"><Input aria-label={`Preço simulado ${ruleLabel(rule)}`} className="tabular h-8 w-28" inputMode="decimal" value={price} onChange={(e) => setPrice(e.target.value)} /></td>
         <td className={cn('tabular px-3 py-2.5 text-right', sim && sim.result.profit < 0 && 'text-bad')}>{sim ? formatBRL(sim.result.profit) : '—'}</td>
         <td className={cn('tabular px-3 py-2.5 text-right font-medium', marginTone(sim?.result.marginPct, base.target))}>{sim ? pct(sim.result.marginPct) : '—'}</td>
@@ -195,7 +204,7 @@ function RuleRow({ rule, productId, cost, costSource, target, listing }: {
       {open && sim && (
         <tr className="bg-sunk/40">
           <td />
-          <td colSpan={7} className="px-3 py-3">
+          <td colSpan={8} className="px-3 py-3">
             <div className="grid gap-4 md:grid-cols-[320px_1fr]">
               <BreakdownTable b={sim.result} compact />
               <div className="text-xs text-muted">
@@ -282,7 +291,9 @@ function RulesTab() {
                 </tbody>
               </table>
               <dl className="grid grid-cols-[1fr_auto] gap-y-0.5 text-sm">
-                <dt className="text-muted">Frete por sua conta</dt><dd className="tabular">{formatBRL(r.shipping_fee)}{r.shipping_min_price != null && ` a partir de ${formatBRL(r.shipping_min_price)}`}</dd>
+                <dt className="text-muted">Frete por sua conta</dt><dd className="tabular">{chargesShipping(r)
+                  ? `informado por produto${r.shipping_min_price != null ? `, a partir de ${formatBRL(r.shipping_min_price)}` : ''}${Number(r.shipping_fee) > 0 ? ` (padrão ${formatBRL(r.shipping_fee)})` : ''}`
+                  : 'não cobrado'}</dd>
                 <dt className="text-muted">Outras taxas do canal</dt><dd className="tabular">{pct(r.extra_pct)}</dd>
                 <dt className="text-muted">Impostos sobre a venda</dt><dd className="tabular">{pct(r.tax_pct)}</dd>
                 <dt className="text-muted">Embalagem</dt><dd className="tabular">{formatBRL(r.packaging_cost)}</dd>
