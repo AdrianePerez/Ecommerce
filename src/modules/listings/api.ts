@@ -36,6 +36,8 @@ export interface Listing {
   attributes: Record<string, string>
   keywords: string[]
   suggested_price: number | null
+  pricing_rule_id: string | null
+  shipping_cost: number | null
   main_image_id: string | null
   status: ListingStatus
   last_reviewed_at: string | null
@@ -52,7 +54,7 @@ export interface ListingRow extends Listing {
 }
 
 export type ListingPatch = Partial<Pick<Listing, 'title' | 'description' | 'category_suggested' | 'category_external_id' | 'attributes'
-  | 'keywords' | 'suggested_price' | 'main_image_id' | 'status' | 'external_id' | 'external_url' | 'notes' | 'variant_label'>>
+  | 'keywords' | 'suggested_price' | 'pricing_rule_id' | 'shipping_cost' | 'main_image_id' | 'status' | 'external_id' | 'external_url' | 'notes' | 'variant_label'>>
 
 // ---------------------------------------------------------------------
 // Canais

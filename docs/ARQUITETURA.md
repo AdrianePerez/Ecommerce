@@ -133,3 +133,15 @@ Feito na Edge Function `importar-imagem` (o navegador seria bloqueado por CORS).
 
 ### ADR-24 · Textos sugeridos sem IA
 Título e descrição sugeridos são montados por regra fixa (`listingModel.ts`) só com campos do cadastro e atributos **confirmados**; o título retira partes opcionais para caber no limite do canal. A geração com IA, quando ligada, seguirá a mesma regra de usar só dados confirmados ou marcar como sugestão.
+
+### ADR-25 · Regras de preço versionadas e por faixa
+Tarifas e custos ficam em `pricing_rules`, nunca no código. Comissão e tarifa fixa variam por faixa de preço (`tiers`: a faixa vale a partir de `min_price`), o que cobre o custo fixo do Mercado Livre abaixo de R$ 79 e a comissão diferente do TikTok Shop abaixo de R$ 50. Frete pago pelo vendedor tem valor e preço mínimo de incidência; o anúncio pode substituir o valor (`shipping_cost`). Uma versão gravada não muda (gatilho); alterar cria nova versão e `activate_pricing_rule` troca a ativa. Somente administrador cria/ativa.
+
+### ADR-26 · Fórmula
+Lucro = preço − custo − fixos(faixa) − preço × (comissão + outras taxas + impostos + outros %). Margem = lucro ÷ preço; markup = preço ÷ custo. Preço mínimo para a margem m: em cada trecho entre os pontos de corte (faixas e início do frete), P = (custo + fixos) ÷ (1 − %variáveis − m); fica o menor P que cai dentro do seu trecho e atinge a margem depois do arredondamento. Implementado uma única vez em `src/lib/domain/pricing.ts` (decimal.js), usado no simulador, no anúncio e na vitrine.
+
+### ADR-27 · Histórico de simulações
+`pricing_simulations` é só inclusão: guarda custo usado (médio ou manual), versão da regra, preço, frete e o detalhamento. Aplicar preço no anúncio registra uma simulação `applied`. Se o custo médio mudar depois, o anúncio avisa e a margem exibida já usa o custo atual; o registro antigo fica como estava. Nada é enviado aos canais.
+
+### ADR-28 · Vitrine
+View `showcase_rows` (security invoker): uma linha por anúncio ativo, ou uma linha para o produto sem anúncio. Filtros de ausência (foto, título, descrição, preço, dimensões, peso, cadastro) são colunas da view. A margem é calculada no navegador com a mesma função do simulador.

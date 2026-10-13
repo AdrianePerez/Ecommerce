@@ -22,8 +22,8 @@ export const NAV: NavItem[] = [
   { to: '/catalogos', label: 'Catálogos e coleções', icon: BookOpen },
   { to: '/preparacao', label: 'Central de preparação', icon: Wand2 },
   { to: '/imagens', label: 'Galeria de imagens', icon: Images },
-  { to: '/precificacao', label: 'Precificação', icon: Calculator, phase: 5 },
-  { to: '/vitrine', label: 'Vitrine de anúncios', icon: Store, phase: 5 },
+  { to: '/precificacao', label: 'Precificação', icon: Calculator },
+  { to: '/vitrine', label: 'Vitrine de anúncios', icon: Store },
   { to: '/financeiro', label: 'Financeiro', icon: CalendarDays, phase: 6 },
   { to: '/configuracoes', label: 'Configurações', icon: Settings },
 ]

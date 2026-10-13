@@ -2,7 +2,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, ArrowRight, Check, Copy, ExternalLink, RefreshCw, Star } from 'lucide-react'
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { Badge, Button, Card, ErrorState, Field, Input, PageHeader, Spinner, Textarea, cn } from '@/components/ui'
+import { Badge, Button, Card, ErrorState, Field, Input, PageHeader, Select, Spinner, Textarea, cn } from '@/components/ui'
+import { roundUpTo90 } from '@/lib/domain/pricing'
+import { lastAppliedSimulation, listPricingRules, ruleWarnings, saveSimulation, simulate } from '@/modules/pricing/api'
+import { BreakdownTable, EstimateNote } from '@/modules/pricing/components'
 import { useToast } from '@/components/ui/toast'
 import { parseBrDecimal } from '@/lib/domain/numbers'
 import { formatBRL, formatDateTime, formatNumber } from '@/lib/format'
@@ -34,12 +37,13 @@ export function ListingEditPage() {
 
 type Form = {
   title: string; description: string; category_suggested: string; category_external_id: string; keywords: string
-  price: string; attributes: Record<string, string>; external_id: string; external_url: string; notes: string
+  price: string; rule_id: string; shipping: string; attributes: Record<string, string>; external_id: string; external_url: string; notes: string
 }
+const dec = (v: number | null) => (v == null ? '' : Number(v).toFixed(2).replace('.', ','))
 const toForm = (l: Listing): Form => ({
   title: l.title ?? '', description: l.description ?? '', category_suggested: l.category_suggested ?? '',
   category_external_id: l.category_external_id ?? '', keywords: l.keywords.join(', '),
-  price: l.suggested_price != null ? formatNumber(l.suggested_price, 2) : '', attributes: { ...l.attributes },
+  price: dec(l.suggested_price), rule_id: l.pricing_rule_id ?? '', shipping: dec(l.shipping_cost), attributes: { ...l.attributes },
   external_id: l.external_id ?? '', external_url: l.external_url ?? '', notes: l.notes ?? '',
 })
 
@@ -52,7 +56,9 @@ function Editor({ listing, market, assetIds }: { listing: Listing; market: Marke
   const [error, setError] = useState<string | null>(null)
 
   const initial = useMemo(() => JSON.stringify([toForm(listing), listing.main_image_id, assetIds]), [listing, assetIds])
-  const dirty = JSON.stringify([form, mainId, extra]) !== initial
+  const [autoRule, setAutoRule] = useState<string | null>(null)
+  const formForDirty = autoRule && form.rule_id === autoRule ? { ...form, rule_id: '' } : form
+  const dirty = JSON.stringify([formForDirty, mainId, extra]) !== initial
   useEffect(() => {
     const h = (e: BeforeUnloadEvent) => { if (dirty) e.preventDefault() }
     window.addEventListener('beforeunload', h)
@@ -74,6 +80,22 @@ function Editor({ listing, market, assetIds }: { listing: Listing; market: Marke
 
   const set = <K extends keyof Form>(k: K, v: Form[K]) => setForm((f) => ({ ...f, [k]: v }))
 
+  // Precificação: regras do canal (ativas + a que o anúncio já usa)
+  const rules = useQuery({ queryKey: ['pricing-rules', 'all'], queryFn: () => listPricingRules() })
+  const marketRules = (rules.data ?? []).filter((r) => r.marketplace_id === listing.marketplace_id && (r.is_active || r.id === listing.pricing_rule_id))
+  const rule = marketRules.find((r) => r.id === form.rule_id) ?? null
+  useEffect(() => {
+    if (form.rule_id || !marketRules.length) return
+    const def = marketRules.find((r) => r.is_active)?.id
+    if (def) { setAutoRule(def); setForm((f) => (f.rule_id ? f : { ...f, rule_id: def })) }
+  }, [marketRules, form.rule_id])
+  const lastApplied = useQuery({ queryKey: ['last-applied', listing.id, listing.updated_at], queryFn: () => lastAppliedSimulation(listing.id) })
+  const avgCost = cost.data?.average_unit_cost ?? null
+  const num = (s: string) => { try { return parseBrDecimal(s)?.toNumber() ?? null } catch { return null } }
+  const priceNum = num(form.price)
+  const shippingNum = form.shipping.trim() ? num(form.shipping) : null
+  const sim = rule && avgCost ? simulate(rule, avgCost, priceNum && priceNum > 0 ? priceNum : 1, { shipping: shippingNum }) : null
+
   const save = useMutation({
     mutationFn: async (status?: ListingStatus) => {
       let price: number | null = null
@@ -88,8 +110,19 @@ function Editor({ listing, market, assetIds }: { listing: Listing; market: Marke
         keywords: parseKeywords(form.keywords), suggested_price: price, attributes, main_image_id: mainId,
         external_id: form.external_id.trim() || null, external_url: form.external_url.trim() || null, notes: form.notes.trim() || null,
       }
+      if (form.shipping.trim() && shippingNum == null) throw new Error('Frete inválido. Use o formato 18,50.')
+      patch.pricing_rule_id = form.rule_id || null
+      patch.shipping_cost = shippingNum
       if (status) patch.status = status
-      return updateListing(listing.id, patch, listing.updated_at)
+      const saved = await updateListing(listing.id, patch, listing.updated_at)
+      // Registra a simulação do preço aplicado (custo e versão da regra usados)
+      const changed = price !== listing.suggested_price || (form.rule_id || null) !== listing.pricing_rule_id || shippingNum !== listing.shipping_cost
+        || (lastApplied.data && avgCost != null && Number(lastApplied.data.unit_cost) !== Number(avgCost))
+      if (price && rule && avgCost && changed) {
+        await saveSimulation({ productId: listing.product_id, listingId: listing.id, rule, cost: avgCost, costSource: 'custo_medio',
+          price, shipping: shippingNum, applied: true })
+      }
+      return saved
     },
     onSuccess: (saved, status) => {
       setError(null)
@@ -98,6 +131,8 @@ function Editor({ listing, market, assetIds }: { listing: Listing; market: Marke
       qc.invalidateQueries({ queryKey: ['listings'] })
       qc.invalidateQueries({ queryKey: ['listing-counts'] })
       qc.invalidateQueries({ queryKey: ['product-listings', listing.product_id] })
+      qc.invalidateQueries({ queryKey: ['simulations', listing.product_id] })
+      qc.invalidateQueries({ queryKey: ['showcase'] })
       toast(status ? `Anúncio: ${LISTING_STATUS_LABEL[status]}.` : 'Anúncio salvo.')
     },
     onError: (e: Error) => {
@@ -262,15 +297,46 @@ function Editor({ listing, market, assetIds }: { listing: Listing; market: Marke
         </div>
 
         <aside className="flex flex-col gap-4 xl:sticky xl:top-0 xl:self-start">
-          <Card title="Preço">
-            <Field label={`Preço de venda${req('price') ? ' *' : ''}`} htmlFor="l_price">
-              <Input id="l_price" inputMode="decimal" className="tabular" value={form.price} onChange={(e) => set('price', e.target.value)} placeholder="0,00" />
-            </Field>
-            <dl className="mt-3 grid grid-cols-[1fr_auto] gap-y-1 text-sm">
-              <dt className="text-muted">Custo médio de aquisição</dt><dd className="tabular">{cost.data ? formatBRL(cost.data.average_unit_cost) : '—'}</dd>
-              <dt className="text-muted">Preço sugerido no catálogo</dt><dd className="tabular">{catalogPrice != null ? formatBRL(catalogPrice) : '—'}</dd>
-            </dl>
-            <p className="mt-2 text-xs text-muted">O cálculo com tarifas e margem por canal entra na fase de precificação.</p>
+          <Card title="Preço" actions={<Link to={`/precificacao?produto=${listing.product_id}`} className="text-[13px] text-accent hover:underline">Simulador</Link>}>
+            <div className="flex flex-col gap-3">
+              <Field label="Regra de preço" htmlFor="l_rule">
+                <Select id="l_rule" value={form.rule_id} onChange={(e) => set('rule_id', e.target.value)}>
+                  {!marketRules.length && <option value="">Nenhuma regra para este canal</option>}
+                  {marketRules.map((r) => <option key={r.id} value={r.id}>{r.name} (v{r.version}{r.is_active ? '' : ', antiga'})</option>)}
+                </Select>
+              </Field>
+              {rule && ruleWarnings(rule).length > 0 && (
+                <p className="rounded-md bg-warn-soft px-3 py-2 text-xs text-warn">Regra incompleta: {ruleWarnings(rule).join(', ')}. Ajuste em Precificação → Regras por canal.</p>
+              )}
+              {rule?.shipping_min_price != null || rule?.shipping_fee ? (
+                <Field label="Frete por sua conta neste anúncio (R$)" htmlFor="l_ship" hint={`Vazio = ${formatBRL(rule?.shipping_fee ?? 0)} da regra`}>
+                  <Input id="l_ship" inputMode="decimal" className="tabular" value={form.shipping} onChange={(e) => set('shipping', e.target.value)} />
+                </Field>
+              ) : null}
+              <Field label={`Preço de venda${req('price') ? ' *' : ''}`} htmlFor="l_price">
+                <Input id="l_price" inputMode="decimal" className="tabular" value={form.price} onChange={(e) => set('price', e.target.value)} placeholder="0,00" />
+              </Field>
+              {sim?.min.price != null && (
+                <Button size="sm" onClick={() => set('price', dec(roundUpTo90(sim.min.price!)))}>
+                  Usar {formatBRL(roundUpTo90(sim.min.price))} (margem {formatNumber(sim.target, 1)}%)
+                </Button>
+              )}
+              {sim && sim.min.price == null && <p className="text-xs text-bad">{sim.min.reason}</p>}
+              {avgCost == null ? (
+                <p className="text-xs text-warn">Sem custo de aquisição (nenhuma nota importada): não dá para calcular a margem.</p>
+              ) : sim && priceNum ? <BreakdownTable b={sim.result} compact /> : (
+                <p className="text-xs text-muted">Custo médio {formatBRL(avgCost)}. Digite o preço para ver a margem.</p>
+              )}
+              {lastApplied.data && avgCost != null && Number(lastApplied.data.unit_cost) !== Number(avgCost) && (
+                <p className="rounded-md bg-warn-soft px-3 py-2 text-xs text-warn">
+                  O custo médio mudou desde o último preço ({formatBRL(lastApplied.data.unit_cost)} → {formatBRL(avgCost)}). A margem acima já usa o custo atual.
+                </p>
+              )}
+              <dl className="grid grid-cols-[1fr_auto] gap-y-1 text-sm">
+                <dt className="text-muted">Preço sugerido no catálogo</dt><dd className="tabular">{catalogPrice != null ? formatBRL(catalogPrice) : '—'}</dd>
+              </dl>
+              <EstimateNote />
+            </div>
           </Card>
 
           <Card title="Verificação do canal" actions={dirty ? <Badge tone="warn">alterações não salvas</Badge> : undefined}>

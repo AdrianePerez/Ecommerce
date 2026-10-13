@@ -19,12 +19,12 @@ export type ProductFilters = {
 export const PAGE_SIZE = 25
 
 /** Protege o termo de busca para uso dentro de um filtro or() do PostgREST. */
-function quoted(term: string) {
+export function quoted(term: string) {
   return `"*${term.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}*"`
 }
 
 /** IDs de produtos com algum identificador (EAN/código) contendo o termo. */
-async function productIdsByIdentifier(term: string): Promise<string[]> {
+export async function productIdsByIdentifier(term: string): Promise<string[]> {
   const { data, error } = await supabase
     .from('product_identifiers')
     .select('product_id')

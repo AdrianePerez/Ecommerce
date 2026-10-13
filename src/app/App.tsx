@@ -1,4 +1,6 @@
 import { GalleryPage } from '@/modules/images/GalleryPage'
+import { PricingPage } from '@/modules/pricing/PricingPage'
+import { ShowcasePage } from '@/modules/showcase/ShowcasePage'
 import { ListingsPage } from '@/modules/listings/ListingsPage'
 import { ListingEditPage } from '@/modules/listings/ListingEditPage'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -83,6 +85,8 @@ export default function App() {
                 <Route path="preparacao" element={<ListingsPage />} />
                 <Route path="preparacao/:id" element={<ListingEditPage />} />
                 <Route path="imagens" element={<GalleryPage />} />
+                <Route path="precificacao" element={<PricingPage />} />
+                <Route path="vitrine" element={<ShowcasePage />} />
                 <Route path="configuracoes" element={<SettingsPage />} />
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Route>

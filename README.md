@@ -12,8 +12,8 @@ Plataforma interna da Dualshop para gestão de produtos, custos de aquisição, 
 | 1 | Fundação, autenticação, RLS, cadastro mestre de produtos | concluída |
 | 2 | Importação de XML de NF-e e custo médio, edição em massa | concluída |
 | 3 | Catálogos PDF: envio, revisão manual por página, aprovação | concluída (leitura com IA depende da chave da API) |
-| 4 | Galeria de imagens, fontes, ficha comercial, preparação de anúncios | **em validação** — parte sem IA; pesquisa e textos com IA depois da chave |
-| 5 | Precificação e vitrine | — |
+| 4 | Galeria de imagens, fontes, ficha comercial, preparação de anúncios | concluída (parte sem IA; pesquisa e textos com IA depois da chave) |
+| 5 | Precificação e vitrine | **em validação** |
 | 6 | Financeiro | — |
 
 Os módulos das próximas fases aparecem no menu desabilitados, com a fase indicada.
@@ -59,6 +59,7 @@ As migrações ficam em `supabase/migrations/` e são aplicadas em ordem:
 6. `20261013160000_bulk_update.sql` — `bulk_update_products` (edição em massa com lista de campos permitidos).
 7. `20261013170000_catalogs.sql` — `supplier_catalogs`, `catalog_pages`, `catalog_items`, view `catalog_overview`, `match_catalog_code`, `approve_catalog_item`, políticas do bucket `catalogs`.
 8. `20261014120000_images_listings.sql` — `product_images` (galeria com versões), `product_research_sources`, `marketplace_configs` (Mercado Livre, TikTok Shop; Shopee e Amazon inativos), `product_listings`, `listing_assets`, `listing_issues`, `set_main_image`, `reorder_product_images`.
+9. `20261014150000_pricing_showcase.sql` + `20261014150100_pricing_privileges.sql` — `pricing_rules` (versionadas, faixas de preço), `pricing_simulations` (histórico só de inclusão), `activate_pricing_rule`, regra/frete no anúncio, view `showcase_rows`.
 
 ### Edge Functions
 
@@ -86,6 +87,15 @@ Detalhes do modelo e decisões em [`docs/ARQUITETURA.md`](docs/ARQUITETURA.md).
 
 Para rodar localmente sem Supabase: um Postgres 15+ com `pg_trgm`, e
 `PGHOST=... PGPORT=... npm run test:db` (o script cria o banco `dualshop_test` e simula `auth`/`storage`).
+
+## Validação manual da fase 5
+
+1. Precificação → **Regras por canal**: conferir Mercado Livre Clássico/Premium e TikTok Shop. Em cada uma, **Alterar** e preencher impostos (%), embalagem (R$) e o frete médio que você paga (ML, vendas a partir de R$ 79). Salvar cria a versão 2; marcar "Mostrar versões antigas" para ver a v1.
+2. **Simulador**: escolher um produto com nota importada. Conferir o custo médio, o preço mínimo para 20% de margem em cada canal e o detalhamento (seta à esquerda).
+3. Digitar um preço e ver lucro, margem (sobre a venda) e markup (sobre o custo). Trocar a margem desejada para 30% e ver o preço mínimo mudar.
+4. "Aplicar no anúncio": o preço vai para o anúncio do canal e a simulação entra no histórico com o custo e a versão da regra.
+5. Abrir o anúncio: o quadro Preço mostra a regra, o detalhamento e o botão "Usar R$ …,90 (margem 20%)".
+6. **Vitrine**: alternar grade/tabela; filtrar "Sem preço", "Sem foto", "Sem anúncio"; conferir margem e a barra de completude (passe o mouse para ver o que falta).
 
 ## Validação manual da fase 4 (sem IA)
 
