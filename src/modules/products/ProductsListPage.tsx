@@ -1,5 +1,5 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
-import { Plus, Search } from 'lucide-react'
+import { PencilRuler, Plus, Search, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { Badge, Button, EmptyState, ErrorState, Input, PageHeader, Pagination, Select, Spinner } from '@/components/ui'
@@ -8,7 +8,8 @@ import { friendlyDbError } from '@/lib/supabase'
 import { PRODUCT_STATUSES, PRODUCT_STATUS_LABEL } from '@/lib/domain/product'
 import type { ProductOverview, ProductStatus } from '@/lib/database.types'
 import { listSuppliers } from '@/modules/settings/api'
-import { PAGE_SIZE, listFilterOptions, listProducts, type ProductFilters } from './api'
+import { BULK_LIMIT, PAGE_SIZE, listFilterOptions, listProductIds, listProducts, type ProductFilters } from './api'
+import { BulkEditModal } from './BulkEditModal'
 import { StatusBadge } from './StatusBadge'
 
 const FLAG_FILTERS = [
@@ -64,6 +65,24 @@ export function ProductsListPage() {
   const suppliers = useQuery({ queryKey: ['suppliers'], queryFn: () => listSuppliers() })
 
   const anyFilter = [...params.keys()].some((k) => k !== 'p')
+
+  // Seleção para alteração em massa (mantida ao trocar de página)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [bulkOpen, setBulkOpen] = useState(false)
+  const [selectingAll, setSelectingAll] = useState(false)
+  const pageIds = products.data?.rows.map((r) => r.id) ?? []
+  const allPageSelected = pageIds.length > 0 && pageIds.every((id) => selected.has(id))
+  const togglePage = (on: boolean) => setSelected((s) => {
+    const n = new Set(s)
+    for (const id of pageIds) { if (on) n.add(id); else n.delete(id) }
+    return n
+  })
+  const toggleOne = (id: string, on: boolean) => setSelected((s) => { const n = new Set(s); if (on) n.add(id); else n.delete(id); return n })
+  async function selectAllFiltered() {
+    setSelectingAll(true)
+    try { setSelected(new Set(await listProductIds(filters))) } finally { setSelectingAll(false) }
+  }
+  const total = products.data?.total ?? 0
 
   return (
     <>
@@ -136,6 +155,21 @@ export function ProductsListPage() {
         )}
       </div>
 
+      {selected.size > 0 && (
+        <div className="sticky top-0 z-10 mb-3 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border border-accent bg-accent-soft px-4 py-2.5 text-sm">
+          <strong>{selected.size.toLocaleString('pt-BR')} {selected.size === 1 ? 'produto selecionado' : 'produtos selecionados'}</strong>
+          {allPageSelected && selected.size < total && total <= BULK_LIMIT && (
+            <button className="text-accent underline-offset-2 hover:underline disabled:opacity-60" disabled={selectingAll} onClick={selectAllFiltered}>
+              {selectingAll ? 'Selecionando…' : `Selecionar todos os ${total.toLocaleString('pt-BR')} do filtro`}
+            </button>
+          )}
+          <div className="ml-auto flex gap-2">
+            <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}><X className="size-4" aria-hidden /> Limpar seleção</Button>
+            <Button size="sm" variant="primary" onClick={() => setBulkOpen(true)}><PencilRuler className="size-4" aria-hidden /> Alterar em massa</Button>
+          </div>
+        </div>
+      )}
+
       <div className="overflow-hidden rounded-lg border border-line bg-surface">
         {products.isPending ? (
           <Spinner />
@@ -157,7 +191,11 @@ export function ProductsListPage() {
               <table className="w-full text-sm">
                 <thead className="bg-sunk text-left text-xs text-muted">
                   <tr>
-                    <th className="px-4 py-2 font-medium">Produto</th>
+                    <th className="w-10 py-2 pl-4">
+                      <input type="checkbox" className="size-4 align-middle accent-accent" aria-label="Selecionar todos desta página"
+                        checked={allPageSelected} onChange={(e) => togglePage(e.target.checked)} />
+                    </th>
+                    <th className="px-3 py-2 font-medium">Produto</th>
                     <th className="px-3 py-2 font-medium">SKU / Código / EAN</th>
                     <th className="px-3 py-2 font-medium">Marca · Coleção</th>
                     <th className="px-3 py-2 font-medium">Dimensões (A×L×P)</th>
@@ -168,7 +206,7 @@ export function ProductsListPage() {
                   </tr>
                 </thead>
                 <tbody className={products.isPlaceholderData ? 'opacity-60' : ''}>
-                  {products.data.rows.map((p) => <Row key={p.id} p={p} />)}
+                  {products.data.rows.map((p) => <Row key={p.id} p={p} selected={selected.has(p.id)} onSelect={(on) => toggleOne(p.id, on)} />)}
                 </tbody>
               </table>
             </div>
@@ -176,17 +214,23 @@ export function ProductsListPage() {
           </>
         )}
       </div>
+      <BulkEditModal open={bulkOpen} ids={[...selected]} onClose={() => setBulkOpen(false)}
+        onDone={() => { setBulkOpen(false); setSelected(new Set()) }} />
     </>
   )
 }
 
-function Row({ p }: { p: ProductOverview }) {
+function Row({ p, selected, onSelect }: { p: ProductOverview; selected: boolean; onSelect: (on: boolean) => void }) {
   const dims = p.missing_dimensions
     ? null
     : `${formatMmAsCm(p.height_mm).replace(' cm', '')} × ${formatMmAsCm(p.width_mm).replace(' cm', '')} × ${formatMmAsCm(p.depth_mm)}`
   return (
-    <tr className="border-t border-line hover:bg-sunk/60">
-      <td className="max-w-80 px-4 py-2.5">
+    <tr className={selected ? 'border-t border-line bg-accent-soft/50' : 'border-t border-line hover:bg-sunk/60'}>
+      <td className="py-2.5 pl-4">
+        <input type="checkbox" className="size-4 align-middle accent-accent" aria-label={`Selecionar ${p.commercial_name || p.nf_description}`}
+          checked={selected} onChange={(e) => onSelect(e.target.checked)} />
+      </td>
+      <td className="max-w-80 px-3 py-2.5">
         <Link to={`/produtos/${p.id}`} className="font-medium text-ink hover:text-accent hover:underline">
           {p.commercial_name || p.nf_description}
         </Link>

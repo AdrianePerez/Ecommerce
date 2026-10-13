@@ -34,13 +34,8 @@ async function productIdsByIdentifier(term: string): Promise<string[]> {
   return [...new Set((data ?? []).map((r: { product_id: string }) => r.product_id))]
 }
 
-export async function listProducts(f: ProductFilters, page: number) {
-  let q = supabase
-    .from('product_overview')
-    .select('*', { count: 'exact' })
-    .order('updated_at', { ascending: false })
-    .range(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE - 1)
-
+/** Aplica busca e filtros a uma consulta da view product_overview. */
+async function applyFilters<Q extends { or: (f: string) => Q; eq: (c: string, v: unknown) => Q; is: (c: string, v: null) => Q; gt: (c: string, v: number) => Q }>(q: Q, f: ProductFilters): Promise<Q> {
   const term = f.search?.trim()
   if (term) {
     const ids = await productIdsByIdentifier(term)
@@ -58,10 +53,35 @@ export async function listProducts(f: ProductFilters, page: number) {
   if (f.missingDimensions) q = q.eq('missing_dimensions', true)
   if (f.missingWeight) q = q.eq('missing_weight', true)
   if (f.missingFiscal) q = q.eq('missing_fiscal', true)
+  return q
+}
 
-  const { data, error, count } = await q
+export async function listProducts(f: ProductFilters, page: number) {
+  const base = supabase
+    .from('product_overview')
+    .select('*', { count: 'exact' })
+    .order('updated_at', { ascending: false })
+    .range(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE - 1)
+  const { data, error, count } = await applyFilters(base, f)
   if (error) throw error
   return { rows: (data ?? []) as ProductOverview[], total: count ?? 0 }
+}
+
+export const BULK_LIMIT = 2000
+
+/** Todos os IDs que atendem aos filtros (para "selecionar todos do filtro"). */
+export async function listProductIds(f: ProductFilters) {
+  const base = supabase.from('product_overview').select('id').order('updated_at', { ascending: false }).range(0, BULK_LIMIT - 1)
+  const { data, error } = await applyFilters(base, f)
+  if (error) throw error
+  return (data ?? []).map((r: { id: string }) => r.id)
+}
+
+/** Altera vários produtos de uma vez (tudo ou nada). Retorna quantos foram alterados. */
+export async function bulkUpdateProducts(ids: string[], changes: Record<string, string>, onlyEmpty: boolean) {
+  const { data, error } = await supabase.rpc('bulk_update_products', { p_ids: ids, p_changes: changes, p_only_empty: onlyEmpty })
+  if (error) throw error
+  return data as number
 }
 
 /** Valores distintos para os filtros de marca e coleção. */
