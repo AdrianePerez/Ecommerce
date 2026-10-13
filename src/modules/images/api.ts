@@ -295,3 +295,34 @@ export async function importCatalogCrop(productId: string, crop: CatalogCrop) {
     source: 'catalogo', sourceRef: `Catálogo "${crop.catalog_name}", página ${crop.page_number}`, catalogItemId: crop.id,
   })
 }
+
+// ---------------------------------------------------------------------
+// Miniatura por produto (listas)
+// ---------------------------------------------------------------------
+export interface ProductThumb { url: string; status: ImageStatus; isMain: boolean }
+
+/**
+ * Uma miniatura por produto: a principal; sem principal, a primeira aprovada;
+ * sem aprovada, a primeira ainda em revisão. Rejeitadas não aparecem.
+ */
+export async function productThumbs(productIds: string[]): Promise<Map<string, ProductThumb>> {
+  const out = new Map<string, ProductThumb>()
+  if (!productIds.length) return out
+  const { data, error } = await supabase.from('product_images')
+    .select('product_id, storage_path, status, is_main, position')
+    .in('product_id', productIds).neq('status', 'rejeitada')
+    .order('is_main', { ascending: false }).order('position')
+  if (error) throw error
+  const rank = (s: ImageStatus) => (s === 'aprovada' ? 0 : 1)
+  const best = new Map<string, { storage_path: string; status: ImageStatus; is_main: boolean }>()
+  for (const r of (data ?? []) as { product_id: string; storage_path: string; status: ImageStatus; is_main: boolean }[]) {
+    const cur = best.get(r.product_id)
+    if (!cur || (!cur.is_main && (r.is_main || rank(r.status) < rank(cur.status)))) best.set(r.product_id, r)
+  }
+  const urls = await signedImageUrls([...best.values()].map((b) => thumbOf(b.storage_path)))
+  for (const [pid, b] of best) {
+    const url = urls.get(thumbOf(b.storage_path))
+    if (url) out.set(pid, { url, status: b.status, isMain: b.is_main })
+  }
+  return out
+}

@@ -38,7 +38,7 @@ export function GalleryPage() {
 
   const bulk = useMutation({
     mutationFn: (patch: Parameters<typeof updateImages>[1]) => updateImages([...selected.keys()], patch),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['gallery'] }); qc.invalidateQueries({ queryKey: ['product-images'] }); setSelected(new Map()); toast('Imagens atualizadas.') },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['gallery'] }); qc.invalidateQueries({ queryKey: ['product-images'] }); qc.invalidateQueries({ queryKey: ['product-thumbs'] }); setSelected(new Map()); toast('Imagens atualizadas.') },
     onError: (e: Error) => toast(friendlyDbError(e), 'bad'),
   })
 

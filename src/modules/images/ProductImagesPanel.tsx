@@ -42,6 +42,7 @@ export function ProductImagesPanel({ product }: { product: ProductRef }) {
     qc.invalidateQueries({ queryKey: key })
     qc.invalidateQueries({ queryKey: ['catalog-crops', product.id] })
     qc.invalidateQueries({ queryKey: ['gallery'] })
+    qc.invalidateQueries({ queryKey: ['product-thumbs'] })
   }
   const fail = (e: Error) => toast(friendlyDbError(e), 'bad')
 

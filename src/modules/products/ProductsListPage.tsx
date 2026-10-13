@@ -1,5 +1,5 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
-import { PencilRuler, Plus, Search, X } from 'lucide-react'
+import { ImageOff, PencilRuler, Plus, Search, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { Badge, Button, EmptyState, ErrorState, Input, PageHeader, Pagination, Select, Spinner } from '@/components/ui'
@@ -10,6 +10,7 @@ import type { ProductOverview, ProductStatus } from '@/lib/database.types'
 import { listSuppliers } from '@/modules/settings/api'
 import { BULK_LIMIT, PAGE_SIZE, listFilterOptions, listProductIds, listProducts, type ProductFilters } from './api'
 import { BulkEditModal } from './BulkEditModal'
+import { productThumbs, type ProductThumb } from '@/modules/images/api'
 import { StatusBadge } from './StatusBadge'
 
 const FLAG_FILTERS = [
@@ -60,6 +61,13 @@ export function ProductsListPage() {
     queryKey: ['products', filters, page],
     queryFn: () => listProducts(filters, page),
     placeholderData: keepPreviousData,
+  })
+  const rowIds = products.data?.rows.map((r) => r.id) ?? []
+  const thumbs = useQuery({
+    queryKey: ['product-thumbs', rowIds.join(',')],
+    queryFn: () => productThumbs(rowIds),
+    enabled: rowIds.length > 0,
+    staleTime: 50 * 60 * 1000, // links assinados valem 1 h
   })
   const options = useQuery({ queryKey: ['product-filter-options'], queryFn: listFilterOptions })
   const suppliers = useQuery({ queryKey: ['suppliers'], queryFn: () => listSuppliers() })
@@ -195,6 +203,7 @@ export function ProductsListPage() {
                       <input type="checkbox" className="size-4 align-middle accent-accent" aria-label="Selecionar todos desta página"
                         checked={allPageSelected} onChange={(e) => togglePage(e.target.checked)} />
                     </th>
+                    <th className="w-16 py-2 pl-2"><span className="sr-only">Foto</span></th>
                     <th className="px-3 py-2 font-medium">Produto</th>
                     <th className="px-3 py-2 font-medium">SKU / Código / EAN</th>
                     <th className="px-3 py-2 font-medium">Marca · Coleção</th>
@@ -206,7 +215,7 @@ export function ProductsListPage() {
                   </tr>
                 </thead>
                 <tbody className={products.isPlaceholderData ? 'opacity-60' : ''}>
-                  {products.data.rows.map((p) => <Row key={p.id} p={p} selected={selected.has(p.id)} onSelect={(on) => toggleOne(p.id, on)} />)}
+                  {products.data.rows.map((p) => <Row key={p.id} p={p} thumb={thumbs.data?.get(p.id)} thumbsLoading={thumbs.isPending && thumbs.fetchStatus !== 'idle'} selected={selected.has(p.id)} onSelect={(on) => toggleOne(p.id, on)} />)}
                 </tbody>
               </table>
             </div>
@@ -220,7 +229,9 @@ export function ProductsListPage() {
   )
 }
 
-function Row({ p, selected, onSelect }: { p: ProductOverview; selected: boolean; onSelect: (on: boolean) => void }) {
+function Row({ p, thumb, thumbsLoading, selected, onSelect }: {
+  p: ProductOverview; thumb?: ProductThumb; thumbsLoading: boolean; selected: boolean; onSelect: (on: boolean) => void
+}) {
   const dims = p.missing_dimensions
     ? null
     : `${formatMmAsCm(p.height_mm).replace(' cm', '')} × ${formatMmAsCm(p.width_mm).replace(' cm', '')} × ${formatMmAsCm(p.depth_mm)}`
@@ -229,6 +240,9 @@ function Row({ p, selected, onSelect }: { p: ProductOverview; selected: boolean;
       <td className="py-2.5 pl-4">
         <input type="checkbox" className="size-4 align-middle accent-accent" aria-label={`Selecionar ${p.commercial_name || p.nf_description}`}
           checked={selected} onChange={(e) => onSelect(e.target.checked)} />
+      </td>
+      <td className="py-1.5 pl-2">
+        <Thumb productId={p.id} thumb={thumb} loading={thumbsLoading} name={p.commercial_name || p.nf_description || ''} />
       </td>
       <td className="max-w-80 px-3 py-2.5">
         <Link to={`/produtos/${p.id}`} className="font-medium text-ink hover:text-accent hover:underline">
@@ -256,5 +270,37 @@ function Row({ p, selected, onSelect }: { p: ProductOverview; selected: boolean;
       </td>
       <td className="tabular px-3 py-2.5 whitespace-nowrap text-muted">{formatDateTime(p.updated_at)}</td>
     </tr>
+  )
+}
+
+/** Fotinho do produto; ao passar o mouse, mostra maior. Sem foto: atalho para a aba Imagens. */
+function Thumb({ productId, thumb, loading, name }: { productId: string; thumb?: ProductThumb; loading: boolean; name: string }) {
+  const [preview, setPreview] = useState<{ left: number; top: number } | null>(null)
+  if (!thumb) {
+    return (
+      <Link to={`/produtos/${productId}?aba=imagens`} title={loading ? '' : 'Sem foto — clique para adicionar'}
+        className="flex size-12 items-center justify-center rounded-md border border-dashed border-line text-muted/60 hover:border-accent hover:text-accent">
+        {loading ? <span className="size-12 animate-pulse rounded-md bg-sunk" /> : <ImageOff className="size-4" aria-hidden />}
+      </Link>
+    )
+  }
+  return (
+    <Link to={`/produtos/${productId}?aba=imagens`} className="relative block size-12" aria-label={`Foto de ${name}`}
+      onMouseEnter={(e) => {
+        const r = e.currentTarget.getBoundingClientRect()
+        const size = 216
+        setPreview({ left: r.right + 8, top: Math.max(8, Math.min(r.top - 8, window.innerHeight - size - 8)) })
+      }}
+      onMouseLeave={() => setPreview(null)}>
+      <img src={thumb.url} alt="" loading="lazy" className="size-12 rounded-md border border-line bg-white object-contain" />
+      {thumb.status !== 'aprovada' && (
+        <span className="absolute -right-1 -bottom-1 size-2.5 rounded-full border-2 border-surface bg-warn" title="Foto ainda não aprovada" />
+      )}
+      {preview && (
+        <span className="pointer-events-none fixed z-50 block w-52 rounded-lg border border-line bg-white p-1 shadow-lg" style={preview}>
+          <img src={thumb.url} alt="" className="aspect-square w-full object-contain" />
+        </span>
+      )}
+    </Link>
   )
 }
