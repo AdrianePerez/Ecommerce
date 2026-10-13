@@ -106,3 +106,15 @@ Ao vincular a um produto existente, NCM/CEST/origem só são preenchidos se esti
 - Notas de devolução, complementares e de ajuste são recusadas.
 - Itens com o mesmo EAN marcados como "novo cadastro" na mesma nota são bloqueados (crie em um e vincule os demais).
 - Não há geração de contas a pagar a partir da nota (prevista para a fase 6, com confirmação).
+
+### ADR-16 · Edição em massa
+`bulk_update_products` (security invoker, sujeita à RLS) aceita só uma lista fechada de colunas, até 2.000 produtos por vez, com opção "só preencher vazios". Alterar NCM/CEST/origem marca a origem fiscal como manual.
+
+### ADR-17 · Catálogo: guardar só as imagens das páginas
+O PDF do fornecedor (ex.: 173 MB) passa do limite de 50 MB por arquivo do plano gratuito e quase todo o conteúdo é imagem. O navegador renderiza cada página com pdf.js (altura 1500 px, JPEG 0,82), divide páginas duplas e envia só as imagens + miniaturas. A impressão digital SHA-256 do PDF impede envio duplicado e permite retomar um envio interrompido. Excluir o catálogo remove imagens, recortes e marcações; o que já foi aprovado fica no produto.
+
+### ADR-18 · Aprovação de item de catálogo
+Itens marcados ficam "aguardando revisão". A aprovação acontece só pela função `approve_catalog_item` (security definer + `is_staff()`): preenche apenas campos vazios, a menos que a divergência seja escolhida, e grava atributos com `source = 'catalogo'` e referência "Catálogo X, página N". Item aprovado não pode ser alterado nem excluído. A ligação com a nota usa o código do catálogo como prefixo do código da nota (≥ 5 caracteres) ou o EAN.
+
+### ADR-19 · Leitura automática com IA (pendente)
+Como as páginas são imagens achatadas (sem texto além dos preços), a extração automática exige um modelo com visão, rodando numa Edge Function com a chave da Anthropic como segredo. Resultado sempre entra como "aguardando revisão".

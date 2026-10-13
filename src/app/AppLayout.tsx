@@ -19,7 +19,7 @@ export const NAV: NavItem[] = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/produtos', label: 'Produtos', icon: Boxes },
   { to: '/entradas', label: 'Entrada de mercadorias', icon: PackageOpen },
-  { to: '/catalogos', label: 'Catálogos e coleções', icon: BookOpen, phase: 3 },
+  { to: '/catalogos', label: 'Catálogos e coleções', icon: BookOpen },
   { to: '/preparacao', label: 'Central de preparação', icon: Wand2, phase: 4 },
   { to: '/imagens', label: 'Galeria de imagens', icon: Images, phase: 4 },
   { to: '/precificacao', label: 'Precificação', icon: Calculator, phase: 5 },

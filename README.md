@@ -10,8 +10,8 @@ Plataforma interna da Dualshop para gestão de produtos, custos de aquisição, 
 |---|---|---|
 | 0 | Diagnóstico e planejamento | concluída |
 | 1 | Fundação, autenticação, RLS, cadastro mestre de produtos | concluída |
-| 2 | Importação de XML de NF-e e custo médio | **em validação** |
-| 3 | Catálogos PDF | — |
+| 2 | Importação de XML de NF-e e custo médio, edição em massa | concluída |
+| 3 | Catálogos PDF: envio, revisão manual por página, aprovação | **em validação** (leitura com IA depende da chave da API) |
 | 4 | Pesquisa com IA, imagens, ficha comercial | — |
 | 5 | Precificação e vitrine | — |
 | 6 | Financeiro | — |
@@ -45,7 +45,7 @@ npm run test:db     # migrações + testes de segurança num Postgres local (pre
 | `VITE_SUPABASE_ANON_KEY` | frontend | chave pública; a proteção dos dados vem da RLS |
 | `SUPABASE_SERVICE_ROLE_KEY` | **somente** Edge Functions | nunca no frontend nem no repositório |
 
-Chaves de IA e de busca entram nas fases 3 e 4 como segredos das Edge Functions.
+Chaves de IA e de busca entram como segredos das Edge Functions (Supabase → Edge Functions → Secrets), nunca no `.env` do frontend.
 
 ## Banco de dados
 
@@ -55,6 +55,9 @@ As migrações ficam em `supabase/migrations/` e são aplicadas em ordem:
 2. `20261009120100_products.sql` — fornecedores, produtos, identificadores, atributos rastreáveis, view `product_overview`.
 3. `20261009150000_hardening.sql` — ajustes do Security Advisor.
 4. `20261013120000_invoices_costs.sql` — notas, itens, regra de custo versionada, histórico de custos (com estorno), `product_cost_summary`, funções `import_invoice`, `relink_invoice_item`, `match_invoice_items`, `suggest_products`, `activate_cost_rule`.
+5. `20261013150000_product_defaults.sql` — marca = nome fantasia do fornecedor e SKU interno = código do fornecedor quando vazios.
+6. `20261013160000_bulk_update.sql` — `bulk_update_products` (edição em massa com lista de campos permitidos).
+7. `20261013170000_catalogs.sql` — `supplier_catalogs`, `catalog_pages`, `catalog_items`, view `catalog_overview`, `match_catalog_code`, `approve_catalog_item`, políticas do bucket `catalogs`.
 
 Detalhes do modelo e decisões em [`docs/ARQUITETURA.md`](docs/ARQUITETURA.md).
 
@@ -78,6 +81,19 @@ Detalhes do modelo e decisões em [`docs/ARQUITETURA.md`](docs/ARQUITETURA.md).
 
 Para rodar localmente sem Supabase: um Postgres 15+ com `pg_trgm`, e
 `PGHOST=... PGPORT=... npm run test:db` (o script cria o banco `dualshop_test` e simula `auth`/`storage`).
+
+## Validação manual da fase 3
+
+O PDF original **não** é guardado: o navegador converte cada página em imagem JPEG (páginas duplas são divididas ao meio) e só as imagens vão para o bucket privado `catalogs`. Um catálogo de 128 páginas / 173 MB vira ~256 imagens, ~49 MB.
+
+1. Catálogos → Enviar catálogo: escolher fornecedor, nome da coleção, ano e o PDF. Acompanhar a barra de progresso.
+2. Interromper no meio e enviar o mesmo PDF de novo: o envio continua de onde parou.
+3. Enviar um PDF já concluído: aparece o aviso de catálogo já enviado.
+4. Abrir o catálogo: miniaturas das páginas; busca por código.
+5. Abrir uma página: arrastar sobre a foto do produto para marcar; o código é sugerido a partir do texto da página quando houver. Ajustar o recorte pelos cantos. ←/→ trocam de página.
+6. Preencher medidas, material, preço sugerido etc. e Salvar. Aprovar: escolher o produto (sugestões pelo código, ex. IS43531SR → IS43531SR0200UN) e marcar quais divergências substituir.
+7. No produto aprovado: campos vazios preenchidos e atributos com fonte "Catálogo \"nome\", página N".
+8. Excluir catálogo: imagens, recortes e marcações somem; dados aprovados continuam nos produtos.
 
 ## Validação manual da fase 2
 

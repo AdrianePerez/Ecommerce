@@ -14,6 +14,10 @@ import { SettingsPage } from '@/modules/settings/SettingsPage'
 import { InvoicesListPage } from '@/modules/invoices/InvoicesListPage'
 import { ImportPage } from '@/modules/invoices/ImportPage'
 import { InvoiceDetailPage } from '@/modules/invoices/InvoiceDetailPage'
+import { CatalogsListPage } from '@/modules/catalogs/CatalogsListPage'
+import { UploadCatalogPage } from '@/modules/catalogs/UploadCatalogPage'
+import { CatalogDetailPage } from '@/modules/catalogs/CatalogDetailPage'
+import { PageReviewPage } from '@/modules/catalogs/PageReviewPage'
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 30_000, retry: 1, refetchOnWindowFocus: false } },
@@ -69,6 +73,10 @@ export default function App() {
                 <Route path="entradas" element={<InvoicesListPage />} />
                 <Route path="entradas/importar" element={<ImportPage />} />
                 <Route path="entradas/:id" element={<InvoiceDetailPage />} />
+                <Route path="catalogos" element={<CatalogsListPage />} />
+                <Route path="catalogos/novo" element={<UploadCatalogPage />} />
+                <Route path="catalogos/:id" element={<CatalogDetailPage />} />
+                <Route path="catalogos/:id/paginas/:n" element={<PageReviewPage />} />
                 <Route path="configuracoes" element={<SettingsPage />} />
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Route>
