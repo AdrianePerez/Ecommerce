@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ChevronDown, ChevronRight, History, Plus } from 'lucide-react'
-import { Fragment, useEffect, useMemo, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Badge, Button, Card, EmptyState, ErrorState, Field, Input, PageHeader, Spinner, cn } from '@/components/ui'
 import { useToast } from '@/components/ui/toast'
@@ -9,7 +9,7 @@ import { parseBrDecimal } from '@/lib/domain/numbers'
 import { roundUpTo90 } from '@/lib/domain/pricing'
 import { formatBRL, formatDate, formatDateTime, formatNumber } from '@/lib/format'
 import { friendlyDbError, supabase } from '@/lib/supabase'
-import { ProductPicker } from '@/modules/invoices/ProductPicker'
+import { ProductList } from './ProductList'
 import { getCostSummary } from '@/modules/invoices/api'
 import { listMarketplaces, listProductListings } from '@/modules/listings/api'
 import {
@@ -43,7 +43,7 @@ export function PricingPage() {
 function Simulator() {
   const [params, setParams] = useSearchParams()
   const productId = params.get('produto')
-  const [picker, setPicker] = useState(false)
+  const select = useCallback((id: string) => setParams({ produto: id }, { replace: true }), [setParams])
   const [manualCost, setManualCost] = useState('')
   const [target, setTarget] = useState('')
 
@@ -67,17 +67,18 @@ function Simulator() {
   const costSource: 'custo_medio' | 'manual' = manual != null ? 'manual' : 'custo_medio'
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="grid items-start gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
+    <ProductList selectedId={productId} onSelect={select} />
+    <div className="flex min-w-0 flex-col gap-4">
       <Card>
         <div className="flex flex-wrap items-end gap-4">
-          <Field label="Produto" className="min-w-72 flex-1">
-            <div className="flex items-center gap-2">
+          <Field label="Produto" className="min-w-60 flex-1">
+            <div className="flex h-9 items-center gap-2">
               <span className="min-w-0 flex-1 truncate text-sm">
                 {product.data ? <Link to={`/produtos/${product.data.id}`} className="font-medium hover:text-accent hover:underline">
-                  {product.data.commercial_name || product.data.nf_description}</Link> : <span className="text-muted">Nenhum produto escolhido</span>}
+                  {product.data.commercial_name || product.data.nf_description}</Link> : <span className="text-muted">Escolha na lista ao lado</span>}
                 {product.data?.internal_sku && <span className="ml-2 font-mono text-xs text-muted">{product.data.internal_sku}</span>}
               </span>
-              <Button onClick={() => setPicker(true)}>{productId ? 'Trocar' : 'Escolher produto…'}</Button>
             </div>
           </Field>
           {productId && (<>
@@ -95,7 +96,7 @@ function Simulator() {
       </Card>
 
       {!productId ? (
-        <EmptyState title="Escolha um produto para simular" description="O custo médio vem das notas importadas. Cada canal mostra o preço mínimo para a margem desejada e o resultado de um preço que você digitar." />
+        <EmptyState title="Escolha um produto para simular" description="Clique num produto da lista. O custo médio vem das notas importadas. Cada canal mostra o preço mínimo para a margem desejada e o resultado de um preço que você digitar." />
       ) : rules.isPending ? <Spinner /> : rules.isError ? <ErrorState message={friendlyDbError(rules.error)} /> : usedCost == null ? (
         <ErrorState message="Este produto ainda não tem custo de aquisição (nenhuma nota importada). Informe um custo para simular." />
       ) : (
@@ -126,8 +127,7 @@ function Simulator() {
           <SimulationHistory productId={productId} />
         </>
       )}
-      <ProductPicker open={picker} onClose={() => setPicker(false)} reasonRequired={false} confirmLabel="Escolher" title="Escolher produto" itemPrefix="" itemLabel=""
-        onPick={(p) => { if (p) setParams({ produto: p.id }, { replace: true }); setPicker(false) }} />
+    </div>
     </div>
   )
 }
