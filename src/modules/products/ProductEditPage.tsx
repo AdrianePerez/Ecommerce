@@ -147,7 +147,7 @@ function ProductEditor({ product }: { product: Product | null }) {
                 hint={product?.nf_description ? 'Preservada como veio do fornecedor.' : undefined}>
                 <Input {...fieldProps('nf_description')} />
               </Field>
-              <Field label="SKU interno" htmlFor="internal_sku" error={errors.internal_sku?.message} hint="Único quando preenchido.">
+              <Field label="SKU interno" htmlFor="internal_sku" error={errors.internal_sku?.message} hint="Único. Se ficar vazio, usa o código do fornecedor.">
                 <Input {...fieldProps('internal_sku')} className="font-mono" />
               </Field>
               <Field label="EAN / GTIN" htmlFor="ean" error={errors.ean?.message}>
@@ -155,7 +155,12 @@ function ProductEditor({ product }: { product: Product | null }) {
               </Field>
               <Field label="Fornecedor principal" htmlFor="main_supplier_id" error={errors.main_supplier_id?.message}>
                 <div className="flex gap-2">
-                  <Select {...fieldProps('main_supplier_id')} className="flex-1">
+                  <Select {...fieldProps('main_supplier_id')} className="flex-1"
+                    onChange={(e) => {
+                      fieldProps('main_supplier_id').onChange(e)
+                      const trade = suppliers.data?.find((x) => x.id === e.target.value)?.trade_name?.trim()
+                      if (trade && !form.getValues('brand').trim()) setValue('brand', trade, { shouldDirty: true })
+                    }}>
                     <option value="">—</option>
                     {suppliers.data?.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
                   </Select>
@@ -165,14 +170,19 @@ function ProductEditor({ product }: { product: Product | null }) {
                 </div>
               </Field>
               <Field label="Código do fornecedor (SKU)" htmlFor="supplier_sku" error={errors.supplier_sku?.message}>
-                <Input {...fieldProps('supplier_sku')} className="font-mono" />
+                <Input {...fieldProps('supplier_sku')} className="font-mono"
+                  onBlur={(e) => {
+                    fieldProps('supplier_sku').onBlur(e)
+                    const code = e.target.value.trim()
+                    if (code && !form.getValues('internal_sku').trim()) setValue('internal_sku', code, { shouldDirty: true })
+                  }} />
               </Field>
             </Grid>
           </Card>
 
           <Card title="Classificação">
             <Grid>
-              <Field label="Marca" htmlFor="brand"><Input {...fieldProps('brand')} /></Field>
+              <Field label="Marca" htmlFor="brand" hint="Se ficar vazia, usa o nome fantasia do fornecedor."><Input {...fieldProps('brand')} /></Field>
               <Field label="Modelo ou referência" htmlFor="model"><Input {...fieldProps('model')} /></Field>
               <Field label="Coleção" htmlFor="collection"><Input {...fieldProps('collection')} /></Field>
               <Field label="Ano da coleção" htmlFor="collection_year" error={errors.collection_year?.message}>
@@ -313,7 +323,10 @@ function ProductEditor({ product }: { product: Product | null }) {
       <SupplierFormModal
         open={supplierModal}
         onClose={() => setSupplierModal(false)}
-        onSaved={(s) => setValue('main_supplier_id', s.id, { shouldDirty: true })}
+        onSaved={(s) => {
+          setValue('main_supplier_id', s.id, { shouldDirty: true })
+          if (s.trade_name && !form.getValues('brand').trim()) setValue('brand', s.trade_name, { shouldDirty: true })
+        }}
       />
     </>
   )
