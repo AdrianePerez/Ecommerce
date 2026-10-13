@@ -1,0 +1,6 @@
+<NFe xmlns="http://www.portalfiscal.inf.br/nfe"><infNFe Id="NFe42261002345678000199550010000007771000007770" versao="4.00">
+<ide><natOp>VENDA</natOp><mod>55</mod><serie>1</serie><nNF>777</nNF><dEmi>2026-10-02</dEmi><tpNF>1</tpNF><finNFe>1</finNFe></ide>
+<emit><CNPJ>02345678000199</CNPJ><xNome>OUTRO FORNECEDOR FICTICIO</xNome></emit>
+<det nItem="1"><prod><cProd>LP-01</cProd><cEAN></cEAN><xProd>LAPIS PRETO</xProd><NCM>96091000</NCM><CFOP>5102</CFOP><uCom>DZ</uCom><qCom>3</qCom><vUnCom>12</vUnCom><vProd>36.00</vProd><uTrib>DZ</uTrib><qTrib>3</qTrib></prod><imposto><ICMS><ICMS00><orig>0</orig></ICMS00></ICMS></imposto></det>
+<total><ICMSTot><vProd>40.00</vProd><vNF>40.00</vNF></ICMSTot></total>
+</infNFe></NFe>

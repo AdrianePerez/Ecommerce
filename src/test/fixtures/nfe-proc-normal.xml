@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<nfeProc xmlns="http://www.portalfiscal.inf.br/nfe" versao="4.00"><NFe xmlns="http://www.portalfiscal.inf.br/nfe"><infNFe Id="NFe42260912345678000199550010000123451000012341" versao="4.00">
+<ide><cUF>42</cUF><cNF>00001234</cNF><natOp>VENDA DE MERCADORIA</natOp><mod>55</mod><serie>1</serie><nNF>12345</nNF><dhEmi>2026-09-15T14:30:00-03:00</dhEmi><tpNF>1</tpNF><finNFe>1</finNFe></ide>
+<emit><CNPJ>12345678000199</CNPJ><xNome>FORNECEDOR FICTICIO DE TESTE LTDA</xNome><xFant>FICTICIO</xFant><enderEmit><xLgr>RUA TESTE</xLgr></enderEmit></emit>
+<dest><CNPJ>98765432000155</CNPJ><xNome>LOJA FICTICIA DE TESTE LTDA</xNome></dest>
+<det nItem="1"><prod><cProd>MC1601</cProd><cEAN>7891234567895</cEAN><xProd>MOCHILA ESCOLAR 16 COM RODINHAS</xProd><NCM>42029200</NCM><CEST>2804800</CEST><CFOP>6102</CFOP><uCom>UN</uCom><qCom>12.0000</qCom><vUnCom>89.9000000000</vUnCom><vProd>1078.80</vProd><cEANTrib>7891234567895</cEANTrib><uTrib>UN</uTrib><qTrib>12.0000</qTrib><vUnTrib>89.9000000000</vUnTrib><vFrete>21.58</vFrete><vDesc>10.00</vDesc><indTot>1</indTot></prod>
+<imposto><ICMS><ICMS10><orig>2</orig><CST>10</CST><vICMSST>50.25</vICMSST><vFCPST>2.10</vFCPST></ICMS10></ICMS><IPI><cEnq>999</cEnq><IPITrib><CST>50</CST><vBC>1078.80</vBC><pIPI>9.7500</pIPI><vIPI>105.18</vIPI></IPITrib></IPI></imposto></det>
+<det nItem="2"><prod><cProd>ES0207</cProd><cEAN>SEM GTIN</cEAN><xProd>ESTOJO DUPLO CAIXA COM 12</xProd><NCM>42029200</NCM><CFOP>6102</CFOP><uCom>CX</uCom><qCom>2.0000</qCom><vUnCom>220.8000000000</vUnCom><vProd>441.60</vProd><cEANTrib>SEM GTIN</cEANTrib><uTrib>UN</uTrib><qTrib>24.0000</qTrib><vUnTrib>18.4000000000</vUnTrib><indTot>1</indTot></prod>
+<imposto><ICMS><ICMSSN102><orig>0</orig><CSOSN>102</CSOSN></ICMSSN102></ICMS><IPI><cEnq>999</cEnq><IPINT><CST>53</CST></IPINT></IPI></imposto></det>
+<total><ICMSTot><vBC>0.00</vBC><vICMS>0.00</vICMS><vST>52.35</vST><vProd>1520.40</vProd><vFrete>21.58</vFrete><vSeg>0.00</vSeg><vDesc>10.00</vDesc><vIPI>105.18</vIPI><vOutro>0.00</vOutro><vNF>1689.51</vNF></ICMSTot></total>
+</infNFe></NFe><protNFe versao="4.00"><infProt><tpAmb>1</tpAmb><chNFe>42260912345678000199550010000123451000012341</chNFe><dhRecbto>2026-09-15T14:31:00-03:00</dhRecbto><nProt>142260000000001</nProt><cStat>100</cStat><xMotivo>Autorizado o uso da NF-e</xMotivo></infProt></protNFe></nfeProc>

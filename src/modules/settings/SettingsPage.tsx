@@ -10,14 +10,15 @@ import type { Supplier, UserRole } from '@/lib/database.types'
 import { useAuth } from '@/app/auth'
 import { ROLE_LABEL, listProfiles, listSuppliers, saveSupplier, updateProfile } from './api'
 import { SupplierFormModal } from './SupplierFormModal'
+import { CostRuleTab } from './CostRuleTab'
 
 export function SettingsPage() {
-  const [tab, setTab] = useState<'fornecedores' | 'usuarios'>('fornecedores')
+  const [tab, setTab] = useState<'fornecedores' | 'custo' | 'usuarios'>('fornecedores')
   return (
     <>
       <PageHeader title="Configurações" />
       <div className="mb-4 flex gap-1 border-b border-line" role="tablist">
-        {([['fornecedores', 'Fornecedores'], ['usuarios', 'Usuários']] as const).map(([k, l]) => (
+        {([['fornecedores', 'Fornecedores'], ['custo', 'Regra de custo'], ['usuarios', 'Usuários']] as const).map(([k, l]) => (
           <button key={k} role="tab" aria-selected={tab === k} onClick={() => setTab(k)}
             className={clsx('-mb-px border-b-2 px-3 py-2 text-sm',
               tab === k ? 'border-accent font-medium' : 'border-transparent text-muted hover:text-ink')}>
@@ -25,7 +26,7 @@ export function SettingsPage() {
           </button>
         ))}
       </div>
-      {tab === 'fornecedores' ? <SuppliersTab /> : <UsersTab />}
+      {tab === 'fornecedores' ? <SuppliersTab /> : tab === 'custo' ? <CostRuleTab /> : <UsersTab />}
     </>
   )
 }

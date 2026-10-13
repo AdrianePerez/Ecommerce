@@ -18,6 +18,7 @@ export function friendlyDbError(err: PostgrestError | Error | null | undefined):
   if (!err) return 'Erro desconhecido.'
   const e = err as PostgrestError
   const msg = e.message ?? String(err)
+  if (msg.startsWith('NOTA_JA_IMPORTADA')) return 'Esta nota já foi importada.'
   if (e.code === '23505') {
     if (msg.includes('products_internal_sku_key')) return 'Já existe um produto com este SKU interno.'
     if (msg.includes('suppliers_cnpj_key')) return 'Já existe um fornecedor com este CNPJ.'

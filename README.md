@@ -9,8 +9,8 @@ Plataforma interna da Dualshop para gestão de produtos, custos de aquisição, 
 | Fase | Conteúdo | Situação |
 |---|---|---|
 | 0 | Diagnóstico e planejamento | concluída |
-| 1 | Fundação, autenticação, RLS, cadastro mestre de produtos | **em validação** |
-| 2 | Importação de XML de NF-e e custo médio | — |
+| 1 | Fundação, autenticação, RLS, cadastro mestre de produtos | concluída |
+| 2 | Importação de XML de NF-e e custo médio | **em validação** |
 | 3 | Catálogos PDF | — |
 | 4 | Pesquisa com IA, imagens, ficha comercial | — |
 | 5 | Precificação e vitrine | — |
@@ -53,6 +53,8 @@ As migrações ficam em `supabase/migrations/` e são aplicadas em ordem:
 
 1. `20261009120000_base.sql` — perfis, papéis (`admin`, `operador`), `is_staff()`/`is_admin()`, auditoria, buckets privados.
 2. `20261009120100_products.sql` — fornecedores, produtos, identificadores, atributos rastreáveis, view `product_overview`.
+3. `20261009150000_hardening.sql` — ajustes do Security Advisor.
+4. `20261013120000_invoices_costs.sql` — notas, itens, regra de custo versionada, histórico de custos (com estorno), `product_cost_summary`, funções `import_invoice`, `relink_invoice_item`, `match_invoice_items`, `suggest_products`, `activate_cost_rule`.
 
 Detalhes do modelo e decisões em [`docs/ARQUITETURA.md`](docs/ARQUITETURA.md).
 
@@ -76,6 +78,17 @@ Detalhes do modelo e decisões em [`docs/ARQUITETURA.md`](docs/ARQUITETURA.md).
 
 Para rodar localmente sem Supabase: um Postgres 15+ com `pg_trgm`, e
 `PGHOST=... PGPORT=... npm run test:db` (o script cria o banco `dualshop_test` e simula `auth`/`storage`).
+
+## Validação manual da fase 2
+
+1. Entrada de mercadorias → Importar XML: selecionar 1 ou mais XMLs de NF-e (não o PDF).
+2. Conferir cabeçalho, avisos e itens. Itens com EAN ou código já cadastrados aparecem vinculados; os demais viram novo cadastro ou pedem confirmação quando há descrição parecida.
+3. Para notas em caixa/dúzia, conferir o **fator** (unidades por embalagem) e o custo unitário.
+4. Gravar. Importar o mesmo XML de novo: deve aparecer "já foi importada" e o botão ficar bloqueado.
+5. Abrir um produto → aba "Custos e compras" e quadro "Custo de aquisição": custo médio, última compra e histórico.
+6. Importar uma segunda nota do mesmo produto com outro preço e conferir o custo médio ponderado.
+7. Na nota, "Corrigir vínculo" de um item: o custo sai do produto antigo (estorno) e entra no novo.
+8. Configurações → Regra de custo: ver a regra ativa (produtos + IPI). Uma nova versão só vale para as próximas importações.
 
 ## Validação manual da fase 1
 

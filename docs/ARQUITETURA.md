@@ -79,3 +79,30 @@ Buckets privados criados: `nfe-xml`, `catalogs`, `product-images`. XML e catálo
 | 0005 | `product_research`, `product_research_sources`, `product_images`, `product_listings`, `listing_assets` |
 | 0006 | `marketplace_configs`, `pricing_rules` (versionadas), `pricing_simulations` |
 | 0007 | `financial_accounts`, `financial_categories`, `financial_recurrences`, `financial_titles`, `financial_title_events` |
+
+## Fase 2 — Entrada de mercadorias e custos
+
+### ADR-10 · Importação somente por função transacional
+`import_invoice(payload)` grava nota, itens, produtos novos, identificadores e lançamentos de custo em uma única transação (`SECURITY DEFINER`, verifica `is_staff()`). Usuários não têm INSERT/UPDATE/DELETE em `invoices`, `invoice_items` e `product_cost_history`. A chave de acesso é única: a mesma nota nunca entra duas vezes. Qualquer erro desfaz tudo.
+
+### ADR-11 · Leitura do XML no navegador
+O XML é lido no navegador (`src/lib/domain/nfe.ts`) para a conferência imediata e enviado ao banco já estruturado; o arquivo original vai para o bucket privado `nfe-xml/<chave>.xml` com o SHA-256 registrado na nota. Risco aceito: um usuário interno mal-intencionado poderia enviar valores diferentes do XML; o original fica guardado para conferência.
+
+### ADR-12 · Custo gerencial versionado
+`cost_rules` define o que entra no custo (padrão v1: produtos + IPI). Cada lançamento guarda a regra e **todos** os componentes (produtos, IPI, frete, seguro, outras, ST, desconto), permitindo recalcular no futuro. Trocar a regra vale para as próximas importações. O cálculo oficial é `compute_item_cost()` no banco; `src/lib/domain/cost.ts` é só a prévia da tela, testada com os mesmos casos.
+
+Custo médio ponderado = Σ custo das entradas vigentes ÷ Σ quantidades (regra simplificada da especificação; não considera saídas de estoque).
+
+### ADR-13 · Unidade da nota × unidade do produto
+`invoice_items.conversion_factor` (unidades do produto por unidade comercial) e `base_qty` gerado. Sugestão automática: DZ = 12; ou `qTrib ÷ qCom` quando a unidade tributável é UN. Embalagens (CX, PCT, KIT…) sem pista exigem confirmação do fator antes de gravar.
+
+### ADR-14 · Vínculo de itens
+Ordem: EAN → código do fornecedor (pelo CNPJ do emitente) → semelhança de descrição (`pg_trgm`). Semelhança **nunca** vincula sozinha: só sugere. EAN e código apontando produtos diferentes = conflito, exige decisão. Correção posterior (`relink_invoice_item`) gera estorno no produto antigo e nova entrada no novo; identificadores criados por aquele item são movidos (`product_identifiers.source_invoice_item_id`).
+
+### ADR-15 · Dados fiscais vindos da nota
+Ao vincular a um produto existente, NCM/CEST/origem só são preenchidos se estiverem vazios e a origem não for manual. Nunca sobrescreve. Produto criado pela nota recebe `fiscal_source = 'nfe'`.
+
+### Limitações conhecidas
+- Notas de devolução, complementares e de ajuste são recusadas.
+- Itens com o mesmo EAN marcados como "novo cadastro" na mesma nota são bloqueados (crie em um e vincule os demais).
+- Não há geração de contas a pagar a partir da nota (prevista para a fase 6, com confirmação).

@@ -133,3 +133,106 @@ export interface AuditLog {
   actor_id: string | null
   created_at: string
 }
+
+// ---------------------------------------------------------------------
+// Fase 2 · Notas fiscais e custos
+// ---------------------------------------------------------------------
+export type MatchMethod = 'ean' | 'supplier_sku' | 'manual' | 'novo' | 'ignorado'
+
+export interface Invoice {
+  id: string
+  access_key: string
+  number: string
+  series: string | null
+  model: string
+  issued_at: string
+  nature: string | null
+  purpose: number | null
+  supplier_id: string
+  issuer_cnpj: string
+  issuer_name: string
+  recipient_doc: string | null
+  total_products: number
+  total_freight: number
+  total_insurance: number
+  total_discount: number
+  total_ipi: number
+  total_st: number
+  total_other: number
+  total_invoice: number
+  protocol_status: string | null
+  xml_path: string | null
+  xml_sha256: string | null
+  notes: string | null
+  imported_by: string | null
+  imported_at: string
+}
+
+export interface InvoiceItem {
+  id: string
+  invoice_id: string
+  item_number: number
+  product_id: string | null
+  supplier_code: string
+  ean: string | null
+  ean_trib: string | null
+  description: string
+  ncm: string | null
+  cest: string | null
+  cfop: string | null
+  fiscal_origin: number | null
+  unit_com: string | null
+  qty_com: number
+  unit_price_com: number | null
+  unit_trib: string | null
+  qty_trib: number | null
+  total_products: number
+  discount: number
+  freight: number
+  insurance: number
+  other: number
+  ipi_rate: number | null
+  ipi_value: number
+  st_value: number
+  conversion_factor: number
+  base_qty: number
+  match_method: MatchMethod
+  match_reason: string | null
+}
+
+export interface CostHistoryEntry {
+  id: string
+  product_id: string
+  invoice_item_id: string
+  entry_type: 'entrada' | 'estorno'
+  occurred_at: string
+  supplier_id: string | null
+  quantity: number
+  products_value: number
+  ipi_value: number
+  freight_value: number
+  insurance_value: number
+  other_value: number
+  st_value: number
+  discount_value: number
+  cost_total: number
+  unit_cost: number
+  cost_rule_id: string
+  is_reversed: boolean
+  reverses_id: string | null
+  reason: string | null
+  created_by: string | null
+  created_at: string
+}
+
+export interface ProductCostSummary {
+  product_id: string
+  entries: number
+  total_quantity: number
+  total_cost: number
+  average_unit_cost: number
+  last_unit_cost: number
+  last_purchase_at: string
+  last_supplier_id: string | null
+  last_quantity: number
+}

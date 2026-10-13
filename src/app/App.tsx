@@ -11,6 +11,9 @@ import { DashboardPage } from '@/modules/dashboard/DashboardPage'
 import { ProductsListPage } from '@/modules/products/ProductsListPage'
 import { ProductEditPage } from '@/modules/products/ProductEditPage'
 import { SettingsPage } from '@/modules/settings/SettingsPage'
+import { InvoicesListPage } from '@/modules/invoices/InvoicesListPage'
+import { ImportPage } from '@/modules/invoices/ImportPage'
+import { InvoiceDetailPage } from '@/modules/invoices/InvoiceDetailPage'
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 30_000, retry: 1, refetchOnWindowFocus: false } },
@@ -63,6 +66,9 @@ export default function App() {
                 <Route path="produtos" element={<ProductsListPage />} />
                 <Route path="produtos/novo" element={<ProductEditPage />} />
                 <Route path="produtos/:id" element={<ProductEditPage />} />
+                <Route path="entradas" element={<InvoicesListPage />} />
+                <Route path="entradas/importar" element={<ImportPage />} />
+                <Route path="entradas/:id" element={<InvoiceDetailPage />} />
                 <Route path="configuracoes" element={<SettingsPage />} />
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Route>

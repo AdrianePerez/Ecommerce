@@ -22,6 +22,7 @@ import { StatusBadge } from './StatusBadge'
 import { IdentifiersPanel } from './IdentifiersPanel'
 import { AttributesPanel } from './AttributesPanel'
 import { HistoryPanel } from './HistoryPanel'
+import { CostHistoryPanel, CostSummaryCard } from './CostPanel'
 
 const SOURCE_LABEL: Record<string, string> = {
   manual: 'digitado manualmente', nfe: 'nota fiscal (XML)', catalogo: 'catálogo do fornecedor', pesquisa: 'pesquisa',
@@ -44,7 +45,7 @@ function ProductEditor({ product }: { product: Product | null }) {
   const navigate = useNavigate()
   const qc = useQueryClient()
   const toast = useToast()
-  const [tab, setTab] = useState<'identificadores' | 'atributos' | 'historico'>('identificadores')
+  const [tab, setTab] = useState<'custos' | 'identificadores' | 'atributos' | 'historico'>('custos')
   const [supplierModal, setSupplierModal] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
 
@@ -259,6 +260,7 @@ function ProductEditor({ product }: { product: Product | null }) {
         </form>
 
         <aside className="flex flex-col gap-4 xl:sticky xl:top-0 xl:self-start">
+          {product && <Card title="Custo de aquisição"><CostSummaryCard productId={product.id} /></Card>}
           <Card title="O que falta">
             {missing === null ? (
               <p className="text-sm text-muted">Corrija os campos destacados para calcular.</p>
@@ -273,7 +275,7 @@ function ProductEditor({ product }: { product: Product | null }) {
                 ))}
               </ul>
             )}
-            <p className="mt-3 text-xs text-muted">Fotos, título e preço entram nas fases seguintes.</p>
+            <p className="mt-3 text-xs text-muted">Fotos, título e preço entram nas próximas fases.</p>
           </Card>
         </aside>
       </div>
@@ -282,6 +284,7 @@ function ProductEditor({ product }: { product: Product | null }) {
         <section className="mt-6">
           <div className="mb-3 flex gap-1 border-b border-line" role="tablist">
             {([
+              ['custos', 'Custos e compras'],
               ['identificadores', 'Identificadores'],
               ['atributos', 'Atributos adicionais'],
               ['historico', 'Histórico de alterações'],
@@ -300,6 +303,7 @@ function ProductEditor({ product }: { product: Product | null }) {
               </button>
             ))}
           </div>
+          {tab === 'custos' && <CostHistoryPanel productId={product.id} />}
           {tab === 'identificadores' && <IdentifiersPanel productId={product.id} />}
           {tab === 'atributos' && <AttributesPanel productId={product.id} />}
           {tab === 'historico' && <HistoryPanel productId={product.id} />}
