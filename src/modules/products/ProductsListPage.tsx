@@ -3,7 +3,8 @@ import { ImageOff, PencilRuler, Plus, Search, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { Badge, Button, EmptyState, ErrorState, Input, PageHeader, Pagination, Select, Spinner } from '@/components/ui'
-import { formatDateTime, formatGrams, formatMmAsCm } from '@/lib/format'
+import { formatDate, formatDateTime, formatGrams, formatMmAsCm } from '@/lib/format'
+import { listInvoiceOptions } from '@/modules/invoices/api'
 import { friendlyDbError } from '@/lib/supabase'
 import { PRODUCT_STATUSES, PRODUCT_STATUS_LABEL } from '@/lib/domain/product'
 import type { ProductOverview, ProductStatus } from '@/lib/database.types'
@@ -35,6 +36,7 @@ export function ProductsListPage() {
     missingDimensions: params.get('missingDimensions') === '1',
     missingWeight: params.get('missingWeight') === '1',
     missingFiscal: params.get('missingFiscal') === '1',
+    invoiceId: params.get('nf') ?? '',
   }
 
   // Busca com pequeno atraso para não consultar a cada tecla
@@ -71,6 +73,7 @@ export function ProductsListPage() {
   })
   const options = useQuery({ queryKey: ['product-filter-options'], queryFn: listFilterOptions })
   const suppliers = useQuery({ queryKey: ['suppliers'], queryFn: () => listSuppliers() })
+  const invoices = useQuery({ queryKey: ['invoice-options'], queryFn: listInvoiceOptions })
 
   const anyFilter = [...params.keys()].some((k) => k !== 'p')
 
@@ -132,6 +135,12 @@ export function ProductsListPage() {
         <Select aria-label="Fornecedor" className="w-48" value={filters.supplierId} onChange={(e) => update({ fornecedor: e.target.value })}>
           <option value="">Todos os fornecedores</option>
           {suppliers.data?.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+        </Select>
+        <Select aria-label="NF de entrada" className="w-64" value={filters.invoiceId} onChange={(e) => update({ nf: e.target.value })}>
+          <option value="">Todas as NF de entrada</option>
+          {invoices.data?.map((n) => (
+            <option key={n.id} value={n.id}>NF {n.number} · {n.supplier} · {formatDate(n.issued_at)}</option>
+          ))}
         </Select>
       </div>
 

@@ -67,22 +67,80 @@ export function duplicateIdFromError(e: unknown): string | null {
 // ---------------------------------------------------------------------
 export type InvoiceListRow = Invoice & { supplier: { name: string } | null; items: { count: number }[] }
 
-export async function listInvoices(search: string, page: number) {
-  let q = supabase
-    .from('invoices')
-    .select('*, supplier:suppliers(name), items:invoice_items(count)', { count: 'exact' })
-    .order('issued_at', { ascending: false })
-    .range(page * INVOICE_PAGE_SIZE, page * INVOICE_PAGE_SIZE + INVOICE_PAGE_SIZE - 1)
-  const t = search.trim().replace(/[^0-9A-Za-zÀ-ú ]/g, '')
+export interface InvoiceFilters {
+  search?: string
+  /** número da NF (exato, sem zeros à esquerda) */
+  number?: string
+  supplierId?: string
+  /** datas no formato AAAA-MM-DD (inclusivas), horário de Brasília */
+  issuedFrom?: string
+  issuedTo?: string
+  enteredFrom?: string
+  enteredTo?: string
+}
+
+const dayStart = (d: string) => `${d}T00:00:00-03:00`
+function nextDay(d: string) {
+  const x = new Date(`${d}T12:00:00-03:00`)
+  x.setDate(x.getDate() + 1)
+  return dayStart(x.toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' }))
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function applyInvoiceFilters(q: any, f: InvoiceFilters) {
+  const t = (f.search ?? '').trim().replace(/[^0-9A-Za-zÀ-ú ]/g, '')
   if (t) {
     const digits = t.replace(/\D/g, '')
     const ors = [`issuer_name.ilike.*${t}*`]
     if (digits) ors.push(`number.eq.${digits.replace(/^0+/, '') || '0'}`, `access_key.like.*${digits}*`, `issuer_cnpj.like.*${digits}*`)
     q = q.or(ors.join(','))
   }
+  const num = (f.number ?? '').replace(/\D/g, '').replace(/^0+/, '')
+  if (num) q = q.eq('number', num)
+  if (f.supplierId) q = q.eq('supplier_id', f.supplierId)
+  if (f.issuedFrom) q = q.gte('issued_at', dayStart(f.issuedFrom))
+  if (f.issuedTo) q = q.lt('issued_at', nextDay(f.issuedTo))
+  if (f.enteredFrom) q = q.gte('imported_at', dayStart(f.enteredFrom))
+  if (f.enteredTo) q = q.lt('imported_at', nextDay(f.enteredTo))
+  return q
+}
+
+export async function listInvoices(f: InvoiceFilters, page: number) {
+  const q = applyInvoiceFilters(supabase
+    .from('invoices')
+    .select('*, supplier:suppliers(name), items:invoice_items(count)', { count: 'exact' })
+    .order('issued_at', { ascending: false })
+    .range(page * INVOICE_PAGE_SIZE, page * INVOICE_PAGE_SIZE + INVOICE_PAGE_SIZE - 1), f)
   const { data, error, count } = await q
   if (error) throw error
   return { rows: (data ?? []) as InvoiceListRow[], total: count ?? 0 }
+}
+
+export interface InvoiceTotals { id: string; issued_at: string; imported_at: string; supplier_id: string; total_invoice: number; total_products: number; total_ipi: number }
+
+/** Todas as notas do filtro (só os totais), para o painel por mês. */
+export async function listInvoiceTotals(f: InvoiceFilters) {
+  const out: InvoiceTotals[] = []
+  for (let from = 0; ; from += 1000) {
+    const q = applyInvoiceFilters(supabase.from('invoices')
+      .select('id, issued_at, imported_at, supplier_id, total_invoice, total_products, total_ipi')
+      .order('issued_at').range(from, from + 999), f)
+    const { data, error } = await q
+    if (error) throw error
+    out.push(...((data ?? []) as InvoiceTotals[]))
+    if (!data || data.length < 1000) break
+  }
+  return out
+}
+
+/** Notas para escolher em filtros (mais recentes primeiro). */
+export async function listInvoiceOptions() {
+  const { data, error } = await supabase.from('invoices').select('id, number, series, issued_at, issuer_name, supplier:suppliers(name, trade_name)')
+    .order('issued_at', { ascending: false }).limit(500)
+  if (error) throw error
+  return ((data ?? []) as unknown as { id: string; number: string; series: string | null; issued_at: string; issuer_name: string
+    supplier: { name: string; trade_name: string | null } | null }[])
+    .map((r) => ({ id: r.id, number: r.number, issued_at: r.issued_at, supplier: r.supplier?.trade_name || r.supplier?.name || r.issuer_name }))
 }
 
 export async function getInvoice(id: string) {

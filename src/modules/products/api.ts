@@ -14,6 +14,8 @@ export type ProductFilters = {
   missingWeight?: boolean
   missingFiscal?: boolean
   includeArchived?: boolean
+  /** só produtos que vieram nesta nota de entrada */
+  invoiceId?: string
 }
 
 export const PAGE_SIZE = 25
@@ -35,7 +37,7 @@ export async function productIdsByIdentifier(term: string): Promise<string[]> {
 }
 
 /** Aplica busca e filtros a uma consulta da view product_overview. */
-async function applyFilters<Q extends { or: (f: string) => Q; eq: (c: string, v: unknown) => Q; is: (c: string, v: null) => Q; gt: (c: string, v: number) => Q }>(q: Q, f: ProductFilters): Promise<Q> {
+async function applyFilters<Q extends { or: (f: string) => Q; eq: (c: string, v: unknown) => Q; is: (c: string, v: null) => Q; gt: (c: string, v: number) => Q; in: (c: string, v: string[]) => Q }>(q: Q, f: ProductFilters): Promise<Q> {
   const term = f.search?.trim()
   if (term) {
     const ids = await productIdsByIdentifier(term)
@@ -43,6 +45,12 @@ async function applyFilters<Q extends { or: (f: string) => Q; eq: (c: string, v:
     const ors = cols.map((c) => `${c}.ilike.${quoted(term)}`)
     if (ids.length) ors.push(`id.in.(${ids.join(',')})`)
     q = q.or(ors.join(','))
+  }
+  if (f.invoiceId) {
+    const { data, error } = await supabase.from('invoice_items').select('product_id').eq('invoice_id', f.invoiceId).not('product_id', 'is', null)
+    if (error) throw error
+    const ids = [...new Set((data ?? []).map((r: { product_id: string }) => r.product_id))]
+    q = q.in('id', ids.length ? ids : ['00000000-0000-0000-0000-000000000000'])
   }
   if (f.status) q = q.eq('status', f.status)
   else if (!f.includeArchived) q = q.is('archived_at', null)
