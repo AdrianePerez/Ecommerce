@@ -62,10 +62,12 @@ As migrações ficam em `supabase/migrations/` e são aplicadas em ordem:
 9. `20261014150000_pricing_showcase.sql` + `20261014150100_pricing_privileges.sql` — `pricing_rules` (versionadas, faixas de preço), `pricing_simulations` (histórico só de inclusão), `activate_pricing_rule`, regra/frete no anúncio, view `showcase_rows`.
 10. `20261014170000_showcase_listing_image.sql` — foto do anúncio na vitrine.
 11. `20261015090000_invoice_monitor.sql` + `…090100_invoice_monitor_privileges.sql` — recebimento da mercadoria (`received_at`, `set_invoice_received`) e view `invoice_monitor` (estágio da nota).
+12. `20261015100000_nfe_inbox.sql` + `…100100_nfe_inbox_privileges.sql` — `integration_tokens`, `create_integration_token`, `nfe_inbox` (caixa de entrada de XML) e marcação automática ao importar. Extensão `pg_net` habilitada (testes e futuras rotinas agendadas).
 
 ### Edge Functions
 
 - `supabase/functions/importar-imagem` — baixa uma imagem de um link público para a galeria (só equipe; bloqueia endereços internos; até 15 MB; JPG/PNG/WebP). Publicada com verificação de JWT.
+- `supabase/functions/receber-xml` — recebe XMLs do script do Gmail (chave de integração no cabeçalho `x-dualshop-token`; sem JWT) e coloca na caixa de entrada.
 
 Detalhes do modelo e decisões em [`docs/ARQUITETURA.md`](docs/ARQUITETURA.md).
 

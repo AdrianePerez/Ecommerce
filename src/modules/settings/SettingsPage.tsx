@@ -12,14 +12,15 @@ import { ROLE_LABEL, listProfiles, listSuppliers, saveSupplier, updateProfile } 
 import { SupplierFormModal } from './SupplierFormModal'
 import { CostRuleTab } from './CostRuleTab'
 import { MarketplacesTab } from './MarketplacesTab'
+import { IntegrationsTab } from './IntegrationsTab'
 
 export function SettingsPage() {
-  const [tab, setTab] = useState<'fornecedores' | 'custo' | 'marketplaces' | 'usuarios'>('fornecedores')
+  const [tab, setTab] = useState<'fornecedores' | 'custo' | 'marketplaces' | 'integracoes' | 'usuarios'>('fornecedores')
   return (
     <>
       <PageHeader title="Configurações" />
       <div className="mb-4 flex gap-1 border-b border-line" role="tablist">
-        {([['fornecedores', 'Fornecedores'], ['custo', 'Regra de custo'], ['marketplaces', 'Marketplaces'], ['usuarios', 'Usuários']] as const).map(([k, l]) => (
+        {([['fornecedores', 'Fornecedores'], ['custo', 'Regra de custo'], ['marketplaces', 'Marketplaces'], ['integracoes', 'Integrações'], ['usuarios', 'Usuários']] as const).map(([k, l]) => (
           <button key={k} role="tab" aria-selected={tab === k} onClick={() => setTab(k)}
             className={clsx('-mb-px border-b-2 px-3 py-2 text-sm',
               tab === k ? 'border-accent font-medium' : 'border-transparent text-muted hover:text-ink')}>
@@ -27,7 +28,7 @@ export function SettingsPage() {
           </button>
         ))}
       </div>
-      {tab === 'fornecedores' ? <SuppliersTab /> : tab === 'custo' ? <CostRuleTab /> : tab === 'marketplaces' ? <MarketplacesTab /> : <UsersTab />}
+      {tab === 'fornecedores' ? <SuppliersTab /> : tab === 'custo' ? <CostRuleTab /> : tab === 'marketplaces' ? <MarketplacesTab /> : tab === 'integracoes' ? <IntegrationsTab /> : <UsersTab />}
     </>
   )
 }

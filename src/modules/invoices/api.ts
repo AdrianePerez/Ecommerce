@@ -248,3 +248,76 @@ export async function activateCostRule(id: string) {
   const { error } = await supabase.rpc('activate_cost_rule', { p_rule_id: id })
   if (error) throw error
 }
+
+// ---------------------------------------------------------------------
+// Caixa de entrada de XML (e-mail / SEFAZ)
+// ---------------------------------------------------------------------
+export interface InboxRow {
+  id: string
+  access_key: string
+  source: 'email' | 'sefaz'
+  status: 'nova' | 'importada' | 'ignorada' | 'cancelada'
+  has_full_xml: boolean
+  xml_path: string | null
+  number: string | null
+  series: string | null
+  issued_at: string | null
+  issuer_cnpj: string | null
+  issuer_name: string | null
+  total_invoice: number | null
+  email_from: string | null
+  email_subject: string | null
+  file_name: string | null
+  invoice_id: string | null
+  ignored_reason: string | null
+  received_at: string
+}
+
+export async function listInbox(status: InboxRow['status'] = 'nova') {
+  const { data, error } = await supabase.from('nfe_inbox').select('*').eq('status', status)
+    .order('issued_at', { ascending: false, nullsFirst: false }).limit(200)
+  if (error) throw error
+  return (data ?? []) as InboxRow[]
+}
+
+export async function setInboxStatus(id: string, status: 'nova' | 'ignorada', reason?: string | null) {
+  const { error } = await supabase.from('nfe_inbox').update({ status, ignored_reason: status === 'ignorada' ? (reason || null) : null }).eq('id', id)
+  if (error) throw error
+}
+
+export async function getInboxRows(ids: string[]) {
+  const { data, error } = await supabase.from('nfe_inbox').select('*').in('id', ids)
+  if (error) throw error
+  return (data ?? []) as InboxRow[]
+}
+
+/** Baixa o XML guardado e devolve como arquivo, para entrar no fluxo normal de conferência. */
+export async function inboxXmlFile(row: InboxRow) {
+  if (!row.xml_path) throw new Error('Esta nota ainda não tem o XML completo.')
+  const { data, error } = await supabase.storage.from('nfe-xml').download(row.xml_path)
+  if (error || !data) throw new Error('Não foi possível baixar o XML guardado.')
+  return new File([data], row.file_name || `${row.access_key}.xml`, { type: 'application/xml' })
+}
+
+// ---------------------------------------------------------------------
+// Chaves de integração
+// ---------------------------------------------------------------------
+export interface IntegrationToken { id: string; name: string; token_hint: string; created_at: string; last_used_at: string | null; revoked_at: string | null }
+
+export async function listIntegrationTokens() {
+  const { data, error } = await supabase.from('integration_tokens').select('id, name, token_hint, created_at, last_used_at, revoked_at')
+    .order('created_at', { ascending: false })
+  if (error) throw error
+  return (data ?? []) as IntegrationToken[]
+}
+
+export async function createIntegrationToken(name: string) {
+  const { data, error } = await supabase.rpc('create_integration_token', { p_name: name })
+  if (error) throw error
+  return data as string
+}
+
+export async function revokeIntegrationToken(id: string) {
+  const { error } = await supabase.from('integration_tokens').update({ revoked_at: new Date().toISOString() }).eq('id', id)
+  if (error) throw error
+}

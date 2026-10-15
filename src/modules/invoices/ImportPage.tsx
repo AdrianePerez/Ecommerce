@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, CheckCircle2, FileUp, Link2, Plus, Trash2, X } from 'lucide-react'
-import { useRef, useState, type DragEvent } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useEffect, useRef, useState, type DragEvent } from 'react'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { Badge, Button, Card, ErrorState, Input, PageHeader, Spinner, cn } from '@/components/ui'
 import { useToast } from '@/components/ui/toast'
 import { NfeError, parseNfe, sha256Hex, type NfeItem, type ParsedNfe } from '@/lib/domain/nfe'
@@ -9,7 +9,7 @@ import { describeRule, unitCost, type CostRule } from '@/lib/domain/cost'
 import { formatBRL, formatCnpj, formatDateTime, formatNumber } from '@/lib/format'
 import { friendlyDbError } from '@/lib/supabase'
 import {
-  duplicateIdFromError, findImportedByKeys, getActiveCostRule, importInvoice, matchItems, setInvoiceReceived, suggestProducts, uploadXml,
+  duplicateIdFromError, findImportedByKeys, getActiveCostRule, getInboxRows, inboxXmlFile, importInvoice, matchItems, setInvoiceReceived, suggestProducts, uploadXml,
 } from './api'
 import {
   STATUS_LABEL, buildPayload, checkReady, createNew, ignoreItem, initialDecision, linkTo, type ItemDecision,
@@ -36,6 +36,8 @@ export function ImportPage() {
   const inputRef = useRef<HTMLInputElement>(null)
   const rule = useQuery({ queryKey: ['cost-rule-active'], queryFn: getActiveCostRule })
   const navigate = useNavigate()
+  const [params] = useSearchParams()
+  const loadedFromInbox = useRef(false)
 
   const update = (id: string, patch: Partial<Entry> | ((e: Entry) => Partial<Entry>)) =>
     setEntries((all) => all.map((e) => (e.id === id ? { ...e, ...(typeof patch === 'function' ? patch(e) : patch) } : e)))
@@ -69,6 +71,23 @@ export function ImportPage() {
       }
     }))
   }
+
+  // Notas vindas da caixa de entrada (?caixa=id,id): baixa os XMLs guardados e segue o fluxo normal
+  useEffect(() => {
+    const ids = (params.get('caixa') ?? '').split(',').filter((x) => /^[0-9a-f-]{36}$/.test(x))
+    if (!ids.length || loadedFromInbox.current) return
+    loadedFromInbox.current = true
+    ;(async () => {
+      try {
+        const rows = await getInboxRows(ids)
+        const files = await Promise.all(rows.filter((r) => r.status === 'nova').map(inboxXmlFile))
+        if (files.length) await addFiles(files)
+      } catch (e) {
+        setEntries((all) => [{ id: crypto.randomUUID(), fileName: 'Caixa de entrada', xmlText: '', state: 'erro', error: friendlyDbError(e as Error) }, ...all])
+      }
+    })()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params])
 
   // A mesma nota selecionada duas vezes
   const keyCount = new Map<string, number>()
@@ -177,6 +196,7 @@ function EntryCard({
       }
       onChange({ state: 'gravada', savedId: id })
       qc.invalidateQueries({ queryKey: ['invoices'] })
+      qc.invalidateQueries({ queryKey: ['nfe-inbox'] })
       qc.invalidateQueries({ queryKey: ['products'] })
       qc.invalidateQueries({ queryKey: ['dashboard'] })
       qc.invalidateQueries({ queryKey: ['suppliers'] })
