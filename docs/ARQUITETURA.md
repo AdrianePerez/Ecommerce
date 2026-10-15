@@ -145,3 +145,6 @@ Lucro = preço − custo − fixos(faixa) − preço × (comissão + outras taxa
 
 ### ADR-28 · Vitrine
 View `showcase_rows` (security invoker): uma linha por anúncio ativo, ou uma linha para o produto sem anúncio. Filtros de ausência (foto, título, descrição, preço, dimensões, peso, cadastro) são colunas da view. A margem é calculada no navegador com a mesma função do simulador.
+
+### ADR-29 · Monitor de notas de entrada
+`invoices.received_at` registra a chegada da mercadoria (vazio = em trânsito); só muda pela função `set_invoice_received` (notas seguem sem update direto). A view `invoice_monitor` calcula por nota: itens, produtos, produtos com cadastro mestre incompleto e produtos prontos (status Pronto/Publicado ou anúncio "pronto para publicar"/"publicado"), e um estágio único: em trânsito → cadastro pendente → em preparação → finalizada. Notas importadas antes da mudança foram marcadas como recebidas na data da importação.

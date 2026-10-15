@@ -60,6 +60,8 @@ As migrações ficam em `supabase/migrations/` e são aplicadas em ordem:
 7. `20261013170000_catalogs.sql` — `supplier_catalogs`, `catalog_pages`, `catalog_items`, view `catalog_overview`, `match_catalog_code`, `approve_catalog_item`, políticas do bucket `catalogs`.
 8. `20261014120000_images_listings.sql` — `product_images` (galeria com versões), `product_research_sources`, `marketplace_configs` (Mercado Livre, TikTok Shop; Shopee e Amazon inativos), `product_listings`, `listing_assets`, `listing_issues`, `set_main_image`, `reorder_product_images`.
 9. `20261014150000_pricing_showcase.sql` + `20261014150100_pricing_privileges.sql` — `pricing_rules` (versionadas, faixas de preço), `pricing_simulations` (histórico só de inclusão), `activate_pricing_rule`, regra/frete no anúncio, view `showcase_rows`.
+10. `20261014170000_showcase_listing_image.sql` — foto do anúncio na vitrine.
+11. `20261015090000_invoice_monitor.sql` + `…090100_invoice_monitor_privileges.sql` — recebimento da mercadoria (`received_at`, `set_invoice_received`) e view `invoice_monitor` (estágio da nota).
 
 ### Edge Functions
 

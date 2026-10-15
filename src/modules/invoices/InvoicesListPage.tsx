@@ -2,15 +2,22 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { FileUp, Search } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { Button, Card, EmptyState, ErrorState, Field, Input, PageHeader, Pagination, Select, Spinner, cn } from '@/components/ui'
+import { Badge, Button, Card, EmptyState, ErrorState, Field, Input, PageHeader, Pagination, Select, Spinner, cn } from '@/components/ui'
 import { formatBRL, formatDate, formatDateTime } from '@/lib/format'
 import { friendlyDbError } from '@/lib/supabase'
 import { listSuppliers } from '@/modules/settings/api'
-import { INVOICE_PAGE_SIZE, listInvoiceTotals, listInvoices, type InvoiceFilters } from './api'
+import { INVOICE_PAGE_SIZE, STAGE_LABEL, listInvoiceTotals, listInvoices, type InvoiceFilters, type InvoiceStage } from './api'
+import { ReceiptCell, STAGE_TONE, StageProgress } from './Receipt'
 import { MonthlyChart } from './MonthlyChart'
 import { buildMonths } from './monthly'
 
-const KEYS = { q: 'search', nf: 'number', fornecedor: 'supplierId', emissaoDe: 'issuedFrom', emissaoAte: 'issuedTo', entradaDe: 'enteredFrom', entradaAte: 'enteredTo' } as const
+const KEYS = { q: 'search', nf: 'number', fornecedor: 'supplierId', emissaoDe: 'issuedFrom', emissaoAte: 'issuedTo', entradaDe: 'enteredFrom', entradaAte: 'enteredTo', estagio: 'stage' } as const
+const STAGES: InvoiceStage[] = ['em_transito', 'cadastro_pendente', 'em_preparacao', 'finalizada']
+
+const STAGE_DESC: Record<InvoiceStage, string> = {
+  em_transito: 'XML recebido, mercadoria não', cadastro_pendente: 'Recebida; produto incompleto',
+  em_preparacao: 'Cadastro ok; falta anúncio', finalizada: 'Todos os itens prontos',
+}
 
 export function InvoicesListPage() {
   const [params, setParams] = useSearchParams()
@@ -38,15 +45,22 @@ export function InvoicesListPage() {
 
   const key = JSON.stringify(filters)
   const list = useQuery({ queryKey: ['invoices', key, page], queryFn: () => listInvoices(filters, page), placeholderData: keepPreviousData })
-  const totals = useQuery({ queryKey: ['invoice-totals', key], queryFn: () => listInvoiceTotals(filters) })
+  // Totais sem o filtro de estágio: alimentam os contadores do monitor e o painel
+  const keyNoStage = JSON.stringify({ ...filters, stage: '' })
+  const totals = useQuery({ queryKey: ['invoice-totals', keyNoStage], queryFn: () => listInvoiceTotals({ ...filters, stage: '' }) })
+  const stageCounts = useMemo(() => {
+    const c: Record<InvoiceStage, number> = { em_transito: 0, cadastro_pendente: 0, em_preparacao: 0, finalizada: 0 }
+    for (const r of totals.data ?? []) c[r.stage]++
+    return c
+  }, [totals.data])
   const suppliers = useQuery({ queryKey: ['suppliers'], queryFn: () => listSuppliers() })
 
   const months = useMemo(() => {
-    const rows = (totals.data ?? []).map((r) => ({ date: groupBy === 'emissao' ? r.issued_at : r.imported_at, total: r.total_invoice }))
+    const rows = (totals.data ?? []).filter((r) => !filters.stage || r.stage === filters.stage).map((r) => ({ date: groupBy === 'emissao' ? r.issued_at : r.imported_at, total: r.total_invoice }))
     const from = groupBy === 'emissao' ? filters.issuedFrom : filters.enteredFrom
     const to = groupBy === 'emissao' ? filters.issuedTo : filters.enteredTo
     return buildMonths(rows, { from: from || undefined, to: to || undefined })
-  }, [totals.data, groupBy, filters.issuedFrom, filters.issuedTo, filters.enteredFrom, filters.enteredTo])
+  }, [totals.data, groupBy, filters.stage, filters.issuedFrom, filters.issuedTo, filters.enteredFrom, filters.enteredTo])
 
   const sum = months.reduce((s, m) => s + m.total, 0)
   const count = months.reduce((s, m) => s + m.count, 0)
@@ -60,6 +74,22 @@ export function InvoicesListPage() {
         description="Notas fiscais de compra importadas. Cada nota é contada uma única vez nos custos."
         actions={<Button variant="primary" onClick={() => navigate('/entradas/importar')}><FileUp className="size-4" aria-hidden /> Importar XML</Button>}
       />
+
+      <div className="mb-3 grid grid-cols-2 gap-3 lg:grid-cols-4" role="group" aria-label="Estágio das notas">
+        {STAGES.map((st) => {
+          const on = filters.stage === st
+          return (
+            <button key={st} type="button" aria-pressed={on} onClick={() => update({ estagio: on ? '' : st })}
+              className={cn('flex items-center justify-between rounded-lg border bg-surface px-4 py-3 text-left hover:border-accent', on ? 'border-accent ring-2 ring-accent/20' : 'border-line')}>
+              <span className="flex flex-col items-start gap-1">
+                <span className="text-xs text-muted">{STAGE_DESC[st]}</span>
+                <Badge tone={STAGE_TONE[st]}>{STAGE_LABEL[st]}</Badge>
+              </span>
+              <span className="tabular text-2xl font-semibold">{totals.isPending ? '…' : stageCounts[st]}</span>
+            </button>
+          )
+        })}
+      </div>
 
       <div className="mb-4 flex flex-wrap items-end gap-3 rounded-lg border border-line bg-surface p-3">
         <Field label="Buscar" htmlFor="f_q" className="min-w-56 flex-1">
@@ -141,7 +171,9 @@ export function InvoicesListPage() {
                     <th className="px-3 py-2 font-medium">Fornecedor</th>
                     <th className="px-3 py-2 text-right font-medium">Itens</th>
                     <th className="px-3 py-2 text-right font-medium">Total</th>
-                    <th className="px-3 py-2 font-medium">Entrada (importada em)</th>
+                    <th className="px-3 py-2 font-medium">Mercadoria</th>
+                    <th className="px-3 py-2 font-medium">Cadastro dos produtos</th>
+                    <th className="px-3 py-2 font-medium">Importada em</th>
                     <th className="px-3 py-2" />
                   </tr>
                 </thead>
@@ -154,10 +186,12 @@ export function InvoicesListPage() {
                           NF-e {r.number}{r.series ? `/${r.series}` : ''}
                         </Link>
                       </td>
-                      <td className="px-3 py-2.5">{r.supplier?.name ?? r.issuer_name}</td>
-                      <td className="tabular px-3 py-2.5 text-right">{r.items?.[0]?.count ?? '—'}</td>
+                      <td className="max-w-56 truncate px-3 py-2.5" title={r.supplier_name ?? r.issuer_name}>{r.supplier_trade_name || r.supplier_name || r.issuer_name}</td>
+                      <td className="tabular px-3 py-2.5 text-right">{r.items_total + r.items_ignored}</td>
                       <td className="tabular px-3 py-2.5 text-right">{formatBRL(r.total_invoice)}</td>
-                      <td className="tabular px-3 py-2.5 text-muted">{formatDateTime(r.imported_at)}</td>
+                      <td className="px-3 py-2.5"><ReceiptCell inv={r} compact /></td>
+                      <td className="px-3 py-2.5"><StageProgress inv={r} /></td>
+                      <td className="tabular px-3 py-2.5 whitespace-nowrap text-muted">{formatDateTime(r.imported_at)}</td>
                       <td className="px-3 py-2.5 text-right"><Link to={`/produtos?nf=${r.id}`} className="text-xs text-accent hover:underline">Ver produtos</Link></td>
                     </tr>
                   ))}

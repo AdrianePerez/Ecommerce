@@ -3,11 +3,12 @@ import { ArrowLeft, Download, Link2 } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { Badge, Button, Card, ErrorState, PageHeader, Spinner } from '@/components/ui'
+import { ReceiptCell, StageProgress } from './Receipt'
 import { useToast } from '@/components/ui/toast'
 import { formatBRL, formatCnpj, formatDateTime, formatNumber } from '@/lib/format'
 import { friendlyDbError } from '@/lib/supabase'
 import type { MatchMethod } from '@/lib/database.types'
-import { getInvoice, listInvoiceItems, relinkItem, xmlDownloadUrl, type InvoiceItemRow } from './api'
+import { getInvoice, getInvoiceMonitor, listInvoiceItems, relinkItem, xmlDownloadUrl, type InvoiceItemRow } from './api'
 import { ProductPicker } from './ProductPicker'
 
 const METHOD_LABEL: Record<MatchMethod, string> = {
@@ -22,6 +23,7 @@ export function InvoiceDetailPage() {
 
   const invoice = useQuery({ queryKey: ['invoice', id], queryFn: () => getInvoice(id!) })
   const items = useQuery({ queryKey: ['invoice-items', id], queryFn: () => listInvoiceItems(id!) })
+  const monitor = useQuery({ queryKey: ['invoice-monitor', id], queryFn: () => getInvoiceMonitor(id!) })
 
   const relink = useMutation({
     mutationFn: ({ item, productId, reason }: { item: InvoiceItemRow; productId: string | null; reason: string }) =>
@@ -59,6 +61,14 @@ export function InvoiceDetailPage() {
         description={<>{inv.supplier?.name ?? inv.issuer_name} · emitida em {formatDateTime(inv.issued_at)}</>}
         actions={inv.xml_path && <Button onClick={() => download(inv.xml_path!)}><Download className="size-4" aria-hidden /> Baixar XML</Button>}
       />
+
+      {monitor.data && (
+        <div className="mb-4 flex flex-wrap items-center gap-x-8 gap-y-3 rounded-lg border border-line bg-surface px-4 py-3">
+          <div><div className="mb-1 text-xs text-muted">Mercadoria</div><ReceiptCell inv={monitor.data} /></div>
+          <div><div className="mb-1 text-xs text-muted">Cadastro dos produtos</div><StageProgress inv={monitor.data} /></div>
+          <Link to={`/produtos?nf=${monitor.data.id}`} className="ml-auto text-sm text-accent hover:underline">Ver os produtos desta nota</Link>
+        </div>
+      )}
 
       <Card className="mb-4">
         <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-4">

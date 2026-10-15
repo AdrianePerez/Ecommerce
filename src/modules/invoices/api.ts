@@ -65,7 +65,21 @@ export function duplicateIdFromError(e: unknown): string | null {
 // ---------------------------------------------------------------------
 // Consultas
 // ---------------------------------------------------------------------
-export type InvoiceListRow = Invoice & { supplier: { name: string } | null; items: { count: number }[] }
+export type InvoiceStage = 'em_transito' | 'cadastro_pendente' | 'em_preparacao' | 'finalizada'
+export const STAGE_LABEL: Record<InvoiceStage, string> = {
+  em_transito: 'Em trânsito', cadastro_pendente: 'Cadastro pendente', em_preparacao: 'Em preparação', finalizada: 'Finalizada',
+}
+export type InvoiceListRow = Invoice & {
+  received_at: string | null
+  supplier_name: string | null
+  supplier_trade_name: string | null
+  items_total: number
+  items_ignored: number
+  products_total: number
+  products_incomplete: number
+  products_ready: number
+  stage: InvoiceStage
+}
 
 export interface InvoiceFilters {
   search?: string
@@ -77,6 +91,7 @@ export interface InvoiceFilters {
   issuedTo?: string
   enteredFrom?: string
   enteredTo?: string
+  stage?: InvoiceStage | ''
 }
 
 const dayStart = (d: string) => `${d}T00:00:00-03:00`
@@ -102,13 +117,14 @@ function applyInvoiceFilters(q: any, f: InvoiceFilters) {
   if (f.issuedTo) q = q.lt('issued_at', nextDay(f.issuedTo))
   if (f.enteredFrom) q = q.gte('imported_at', dayStart(f.enteredFrom))
   if (f.enteredTo) q = q.lt('imported_at', nextDay(f.enteredTo))
+  if (f.stage) q = q.eq('stage', f.stage)
   return q
 }
 
 export async function listInvoices(f: InvoiceFilters, page: number) {
   const q = applyInvoiceFilters(supabase
-    .from('invoices')
-    .select('*, supplier:suppliers(name), items:invoice_items(count)', { count: 'exact' })
+    .from('invoice_monitor')
+    .select('*', { count: 'exact' })
     .order('issued_at', { ascending: false })
     .range(page * INVOICE_PAGE_SIZE, page * INVOICE_PAGE_SIZE + INVOICE_PAGE_SIZE - 1), f)
   const { data, error, count } = await q
@@ -116,14 +132,14 @@ export async function listInvoices(f: InvoiceFilters, page: number) {
   return { rows: (data ?? []) as InvoiceListRow[], total: count ?? 0 }
 }
 
-export interface InvoiceTotals { id: string; issued_at: string; imported_at: string; supplier_id: string; total_invoice: number; total_products: number; total_ipi: number }
+export interface InvoiceTotals { id: string; issued_at: string; imported_at: string; supplier_id: string; total_invoice: number; total_products: number; total_ipi: number; stage: InvoiceStage }
 
 /** Todas as notas do filtro (só os totais), para o painel por mês. */
 export async function listInvoiceTotals(f: InvoiceFilters) {
   const out: InvoiceTotals[] = []
   for (let from = 0; ; from += 1000) {
-    const q = applyInvoiceFilters(supabase.from('invoices')
-      .select('id, issued_at, imported_at, supplier_id, total_invoice, total_products, total_ipi')
+    const q = applyInvoiceFilters(supabase.from('invoice_monitor')
+      .select('id, issued_at, imported_at, supplier_id, total_invoice, total_products, total_ipi, stage')
       .order('issued_at').range(from, from + 999), f)
     const { data, error } = await q
     if (error) throw error
@@ -141,6 +157,18 @@ export async function listInvoiceOptions() {
   return ((data ?? []) as unknown as { id: string; number: string; series: string | null; issued_at: string; issuer_name: string
     supplier: { name: string; trade_name: string | null } | null }[])
     .map((r) => ({ id: r.id, number: r.number, issued_at: r.issued_at, supplier: r.supplier?.trade_name || r.supplier?.name || r.issuer_name }))
+}
+
+/** Registra (ou desfaz, com null) o recebimento da mercadoria. Data AAAA-MM-DD. */
+export async function setInvoiceReceived(id: string, receivedOn: string | null) {
+  const { error } = await supabase.rpc('set_invoice_received', { p_invoice_id: id, p_received_on: receivedOn })
+  if (error) throw error
+}
+
+export async function getInvoiceMonitor(id: string) {
+  const { data, error } = await supabase.from('invoice_monitor').select('*').eq('id', id).maybeSingle()
+  if (error) throw error
+  return data as InvoiceListRow | null
 }
 
 export async function getInvoice(id: string) {

@@ -9,7 +9,7 @@ import { describeRule, unitCost, type CostRule } from '@/lib/domain/cost'
 import { formatBRL, formatCnpj, formatDateTime, formatNumber } from '@/lib/format'
 import { friendlyDbError } from '@/lib/supabase'
 import {
-  duplicateIdFromError, findImportedByKeys, getActiveCostRule, importInvoice, matchItems, suggestProducts, uploadXml,
+  duplicateIdFromError, findImportedByKeys, getActiveCostRule, importInvoice, matchItems, setInvoiceReceived, suggestProducts, uploadXml,
 } from './api'
 import {
   STATUS_LABEL, buildPayload, checkReady, createNew, ignoreItem, initialDecision, linkTo, type ItemDecision,
@@ -141,6 +141,7 @@ function EntryCard({
   const qc = useQueryClient()
   const toast = useToast()
   const [picking, setPicking] = useState<number | null>(null)
+  const [receivedNow, setReceivedNow] = useState(false)
 
   if (entry.state === 'lendo') {
     return <Card title={entry.fileName}><Spinner label="Lendo a nota e procurando os produtos…" /></Card>
@@ -170,6 +171,10 @@ function EntryCard({
       const path = await uploadXml(inv.access_key, entry.xmlText)
       const sha = await sha256Hex(entry.xmlText)
       const id = await importInvoice(buildPayload(parsed, decisions, { path, sha256: sha }))
+      if (receivedNow) {
+        try { await setInvoiceReceived(id, new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' })) }
+        catch { toast('Nota gravada, mas não foi possível marcar como recebida. Marque na lista de entradas.', 'bad') }
+      }
       onChange({ state: 'gravada', savedId: id })
       qc.invalidateQueries({ queryKey: ['invoices'] })
       qc.invalidateQueries({ queryKey: ['products'] })
@@ -202,7 +207,7 @@ function EntryCard({
 
       {saved ? (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-md bg-accent-soft px-4 py-3 text-sm text-good">
-          <span className="flex items-center gap-2"><CheckCircle2 className="size-4" aria-hidden /> Nota gravada. Custos atualizados.</span>
+          <span className="flex items-center gap-2"><CheckCircle2 className="size-4" aria-hidden /> Nota gravada. Custos atualizados.{receivedNow ? ' Mercadoria marcada como recebida.' : ' Mercadoria em trânsito até você marcar o recebimento.'}</span>
           <Button size="sm" onClick={() => onOpen(entry.savedId!)}>Ver nota</Button>
         </div>
       ) : (
@@ -256,7 +261,13 @@ function EntryCard({
             ) : (
               <p className="text-sm text-muted">Tudo conferido. Ao gravar, a nota, os itens e os custos são salvos juntos.</p>
             )}
-            <Button variant="primary" disabled={!ready.ready || !rule} loading={saving} onClick={save}>Gravar nota</Button>
+            <div className="flex items-center gap-4">
+              <label className="flex items-center gap-2 text-sm">
+                <input type="checkbox" className="size-4" checked={receivedNow} disabled={saving} onChange={(e) => setReceivedNow(e.target.checked)} />
+                Mercadoria já recebida (hoje)
+              </label>
+              <Button variant="primary" disabled={!ready.ready || !rule} loading={saving} onClick={save}>Gravar nota</Button>
+            </div>
           </div>
         </>
       )}
