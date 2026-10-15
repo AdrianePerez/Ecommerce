@@ -3,6 +3,7 @@
 // a importação continua sendo feita na tela, com conferência.
 // Autenticação: cabeçalho x-dualshop-token com uma chave gerada em Configurações
 // (guardamos só o hash). Sem JWT, por isso a verificação é feita aqui.
+// Só aceita notas cujo emitente (CNPJ) está cadastrado em Fornecedores.
 import { createClient } from 'npm:@supabase/supabase-js@2.49.4'
 
 const MAX_BYTES = 3 * 1024 * 1024
@@ -73,6 +74,11 @@ Deno.serve(async (req) => {
   if (!validKey(key)) return json(422, { error: 'Chave de acesso com dígito verificador inválido.' })
   if (tag(xml, 'mod', 'ide') !== '55') return json(200, { result: 'ignorado', reason: 'não é NF-e modelo 55' })
 
+  // Só notas de fornecedores cadastrados (e não arquivados). As demais são descartadas sem guardar nada.
+  const issuer = (tag(xml, 'CNPJ', 'emit') ?? '').replace(/\D/g, '')
+  const { data: supplier } = await sb.from('suppliers').select('id').eq('cnpj', issuer).is('archived_at', null).maybeSingle()
+  if (!issuer || !supplier) return json(200, { result: 'ignorado', reason: 'fornecedor não cadastrado' })
+
   const { data: existing } = await sb.from('nfe_inbox').select('id, status').eq('access_key', key).maybeSingle()
   if (existing) return json(200, { result: 'duplicada', status: existing.status })
 
@@ -87,7 +93,7 @@ Deno.serve(async (req) => {
     access_key: key, source: 'email', status: inv ? 'importada' : 'nova', invoice_id: inv?.id ?? null,
     has_full_xml: true, xml_path: path,
     number: tag(xml, 'nNF', 'ide'), series: tag(xml, 'serie', 'ide'), issued_at: dh,
-    issuer_cnpj: tag(xml, 'CNPJ', 'emit'), issuer_name: tag(xml, 'xNome', 'emit'),
+    issuer_cnpj: issuer, issuer_name: tag(xml, 'xNome', 'emit'),
     recipient_doc: tag(xml, 'CNPJ', 'dest') ?? tag(xml, 'CPF', 'dest'),
     total_invoice: vNF ? Number(vNF) : null, ...meta,
   })

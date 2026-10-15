@@ -4,7 +4,8 @@ import { useState } from 'react'
 import { Badge, Button, Card, ErrorState, Field, Input, Spinner, Textarea } from '@/components/ui'
 import { useToast } from '@/components/ui/toast'
 import { useAuth } from '@/app/auth'
-import { formatDateTime } from '@/lib/format'
+import { formatCnpj, formatDateTime } from '@/lib/format'
+import { listSuppliers } from './api'
 import { friendlyDbError } from '@/lib/supabase'
 import { createIntegrationToken, listIntegrationTokens, revokeIntegrationToken } from '@/modules/invoices/api'
 import { gmailScript } from './appsScript'
@@ -17,6 +18,7 @@ export function IntegrationsTab() {
   const qc = useQueryClient()
   const toast = useToast()
   const tokens = useQuery({ queryKey: ['integration-tokens'], queryFn: listIntegrationTokens, enabled: isAdmin })
+  const suppliers = useQuery({ queryKey: ['suppliers'], queryFn: () => listSuppliers() })
   const [name, setName] = useState('Gmail')
   const [script, setScript] = useState<string | null>(null)
 
@@ -46,6 +48,10 @@ export function IntegrationsTab() {
             envia os arquivos para a <strong className="text-ink">caixa de entrada</strong> em Entrada de mercadorias. Nada é gravado sem a sua conferência,
             e o sistema não tem acesso ao seu e-mail.
           </p>
+          <p className="rounded-md bg-sunk px-3 py-2 text-muted">
+            <strong className="text-ink">Só entram notas de fornecedores cadastrados</strong> (pelo CNPJ do emitente). XMLs de outras empresas são descartados na hora,
+            sem guardar nada. Fornecedor novo: cadastre o CNPJ em Configurações → Fornecedores (ou importe a primeira nota pelo botão Importar XML).
+          </p>
           {!script ? (
             <div className="flex flex-wrap items-end gap-2">
               <Field label="Nome da chave" htmlFor="tok_name"><Input id="tok_name" className="w-56" value={name} onChange={(e) => setName(e.target.value)} /></Field>
@@ -69,10 +75,24 @@ export function IntegrationsTab() {
             <li>O Google vai pedir autorização: escolha a conta → "Avançado" → "Acessar Dualshop XML (não seguro)" → Permitir. O aviso aparece porque o script é seu, não publicado.</li>
             <li>Pronto: o script roda agora e depois a cada 15 minutos. Os e-mails processados ganham a etiqueta <code>dualshop-xml-enviado</code>.</li>
           </ol>
-          <p className="text-xs text-muted">Busca e-mails dos últimos 60 dias. Notas já importadas aparecem como importadas e não duplicam. XML compactado (.zip) não é lido; nesse caso importe pelo botão Importar XML.</p>
+          <p className="text-xs text-muted">Busca e-mails dos últimos 60 dias. E-mails já processados não são enviados de novo; se cadastrar um fornecedor depois, tire a etiqueta dualshop-xml-enviado do e-mail para reenviar. Notas já importadas aparecem como importadas e não duplicam. XML compactado (.zip) não é lido; nesse caso importe pelo botão Importar XML.</p>
         </div>
       </Card>
 
+      <div className="flex flex-col gap-4">
+      <Card title="Fornecedores aceitos">
+        {suppliers.isPending ? <Spinner /> : (
+          <ul className="flex flex-col gap-1.5 text-sm">
+            {(suppliers.data ?? []).filter((x) => !x.archived_at).map((x) => (
+              <li key={x.id} className="flex items-center justify-between gap-2">
+                <span className="truncate">{x.trade_name || x.name}</span>
+                {x.cnpj ? <span className="font-mono text-xs text-muted">{formatCnpj(x.cnpj)}</span> : <Badge tone="warn">sem CNPJ</Badge>}
+              </li>
+            ))}
+          </ul>
+        )}
+        <p className="mt-2 text-xs text-muted">Fornecedor sem CNPJ não recebe notas automaticamente.</p>
+      </Card>
       <Card title="Chaves de integração">
         {tokens.isPending ? <Spinner /> : tokens.isError ? <ErrorState message={friendlyDbError(tokens.error)} /> : tokens.data.length === 0 ? (
           <p className="text-sm text-muted">Nenhuma chave criada.</p>
@@ -92,6 +112,7 @@ export function IntegrationsTab() {
           </ul>
         )}
       </Card>
+      </div>
     </div>
   )
 }
