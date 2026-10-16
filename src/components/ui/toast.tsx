@@ -9,7 +9,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const push = useCallback((text: string, tone: 'good' | 'bad' = 'good') => {
     const id = Date.now() + Math.random()
     setToasts((t) => [...t, { id, text, tone }])
-    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), tone === 'bad' ? 6000 : 3000)
+    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), Math.max(tone === 'bad' ? 6000 : 3000, text.length * 60))
   }, [])
   return (
     <ToastContext.Provider value={push}>

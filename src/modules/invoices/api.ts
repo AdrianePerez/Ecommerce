@@ -321,3 +321,58 @@ export async function revokeIntegrationToken(id: string) {
   const { error } = await supabase.from('integration_tokens').update({ revoked_at: new Date().toISOString() }).eq('id', id)
   if (error) throw error
 }
+
+// ---------------------------------------------------------------------
+// Sincronização do Gmail sob demanda (app da Web do Apps Script)
+// ---------------------------------------------------------------------
+export interface SyncSettings { url: string | null; secret: string | null }
+
+export async function getSyncSettings(): Promise<SyncSettings> {
+  const { data, error } = await supabase.from('app_settings').select('key, value').in('key', ['gmail_sync_url', 'gmail_sync_secret'])
+  if (error) throw error
+  const m = new Map((data ?? []).map((r) => [(r as { key: string }).key, (r as { value: string }).value]))
+  return { url: m.get('gmail_sync_url') ?? null, secret: m.get('gmail_sync_secret') ?? null }
+}
+
+export async function saveSetting(key: 'gmail_sync_url' | 'gmail_sync_secret', value: string) {
+  const { error } = await supabase.from('app_settings').upsert({ key, value }, { onConflict: 'key' })
+  if (error) {
+    if (error.code === '23514' && key === 'gmail_sync_url') throw new Error('Endereço inválido. Copie o "URL do app da Web", que termina em /exec.')
+    throw error
+  }
+}
+
+export interface SyncResult {
+  conversas: number; xmls: number; novas: number; jaImportadas: number; repetidas: number
+  outrasEmpresas: number; naoNfe: number; erros: number; faltou: boolean
+}
+
+/** Pede ao script do Gmail para varrer o e-mail agora. Pode levar alguns minutos. */
+export async function syncGmail(s: SyncSettings): Promise<SyncResult> {
+  if (!s.url || !s.secret) throw new Error('A sincronização do Gmail ainda não foi configurada (Configurações → Integrações).')
+  let res: Response
+  try {
+    // Texto simples: o Google aceita sem pré-verificação de CORS
+    res = await fetch(s.url, { method: 'POST', body: JSON.stringify({ segredo: s.secret }), redirect: 'follow' })
+  } catch {
+    throw new Error('Não foi possível falar com o script do Gmail. Confira se o app da Web está implantado com acesso "Qualquer pessoa".')
+  }
+  const text = await res.text()
+  let body: Partial<SyncResult> & { erro?: string }
+  try { body = JSON.parse(text) } catch {
+    throw new Error('O script do Gmail não respondeu como esperado. Confira a implantação (Executar como: eu; Quem pode acessar: Qualquer pessoa).')
+  }
+  if (body.erro) throw new Error(`Script do Gmail: ${body.erro}`)
+  return body as SyncResult
+}
+
+export function describeSync(r: SyncResult) {
+  const parts = [`${r.novas} nota(s) nova(s)`]
+  if (r.jaImportadas) parts.push(`${r.jaImportadas} já importada(s)`)
+  if (r.repetidas) parts.push(`${r.repetidas} já estavam na caixa`)
+  if (r.outrasEmpresas) parts.push(`${r.outrasEmpresas} de empresas não cadastradas (descartadas)`)
+  if (r.naoNfe) parts.push(`${r.naoNfe} XML(s) que não são NF-e`)
+  if (r.erros) parts.push(`${r.erros} com erro (tenta de novo na próxima)`)
+  const head = r.xmls === 0 ? `Nenhum XML novo encontrado em ${r.conversas} e-mail(s).` : `${r.xmls} XML(s) lidos em ${r.conversas} e-mail(s): ${parts.join(', ')}.`
+  return r.faltou ? `${head} Ainda há e-mails para ler — clique em Sincronizar de novo.` : head
+}

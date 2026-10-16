@@ -1,11 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Inbox, Mail, X } from 'lucide-react'
+import { Inbox, Mail, RefreshCw, X } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { Button, Card, ErrorState, Spinner } from '@/components/ui'
 import { useToast } from '@/components/ui/toast'
 import { formatBRL, formatDate, formatDateTime } from '@/lib/format'
 import { friendlyDbError } from '@/lib/supabase'
-import { listInbox, setInboxStatus } from './api'
+import { describeSync, getSyncSettings, listInbox, setInboxStatus, syncGmail } from './api'
 
 /** XMLs que chegaram sozinhos (e-mail/SEFAZ) e ainda não foram conferidos. */
 export function InboxCard() {
@@ -71,5 +71,28 @@ export function InboxCard() {
         </table>
       </div>
     </Card>
+  )
+}
+
+/** Botão "Sincronizar e-mail": pede ao script do Gmail para varrer o e-mail agora. */
+export function SyncEmailButton() {
+  const qc = useQueryClient()
+  const toast = useToast()
+  const settings = useQuery({ queryKey: ['sync-settings'], queryFn: getSyncSettings })
+  const run = useMutation({
+    mutationFn: () => syncGmail(settings.data!),
+    onSuccess: (r) => {
+      qc.invalidateQueries({ queryKey: ['nfe-inbox'] })
+      toast(describeSync(r), r.erros ? 'bad' : undefined)
+    },
+    onError: (e: Error) => toast(e.message, 'bad'),
+  })
+  if (!settings.data?.url || !settings.data?.secret) {
+    return <Button onClick={() => toast('Configure a sincronização em Configurações → Integrações.', 'bad')}><RefreshCw className="size-4" aria-hidden /> Sincronizar e-mail</Button>
+  }
+  return (
+    <Button loading={run.isPending} onClick={() => run.mutate()} title="Procura XMLs de notas no Gmail (caixa de entrada e pastas)">
+      {!run.isPending && <RefreshCw className="size-4" aria-hidden />} {run.isPending ? 'Lendo o e-mail…' : 'Sincronizar e-mail'}
+    </Button>
   )
 }

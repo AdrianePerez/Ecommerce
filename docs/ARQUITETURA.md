@@ -154,3 +154,6 @@ Os XMLs chegam por um Google Apps Script que roda na conta Google da empresa (se
 
 ### ADR-31 · SEFAZ (Distribuição DF-e) — próxima etapa
 Teste no runtime das Edge Functions: `Deno.createHttpClient` disponível; o servidor da SEFAZ exige HTTP/1.1 e certificado de cliente (sem certificado a conexão é recusada). Próximo passo: guardar o certificado A1 de forma segura, consultar por NSU respeitando o intervalo mínimo, gravar resumos em `nfe_inbox` (source `sefaz`, `has_full_xml=false`) e manifestar "ciência da operação" para obter o XML completo.
+
+### ADR-32 · Sincronização do Gmail sob demanda
+Em vez de rodar a cada 15 minutos, o script do Gmail é publicado como "app da Web" (executa como a dona da conta) e só roda quando a equipe clica em **Sincronizar e-mail**. O navegador chama o endereço do app com um segredo (`app_settings.gmail_sync_secret`, gerado junto com o código); sem o segredo o script não faz nada. A varredura cobre todo o Gmail fora spam/lixeira (caixa de entrada, marcadores e arquivados), lê anexos .xml e .zip, usa trava para não rodar duas vezes ao mesmo tempo e para em 4,5 min avisando que ainda há e-mails. O resultado (novas, já importadas, de empresas não cadastradas…) volta para a tela.

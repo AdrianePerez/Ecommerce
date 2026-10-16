@@ -8,7 +8,7 @@ import { friendlyDbError } from '@/lib/supabase'
 import { listSuppliers } from '@/modules/settings/api'
 import { INVOICE_PAGE_SIZE, STAGE_LABEL, listInvoiceTotals, listInvoices, type InvoiceFilters, type InvoiceStage } from './api'
 import { ReceiptCell, STAGE_TONE, StageProgress } from './Receipt'
-import { InboxCard } from './InboxCard'
+import { InboxCard, SyncEmailButton } from './InboxCard'
 import { MonthlyChart } from './MonthlyChart'
 import { buildMonths } from './monthly'
 
@@ -73,7 +73,10 @@ export function InvoicesListPage() {
       <PageHeader
         title="Entrada de mercadorias"
         description="Notas fiscais de compra importadas. Cada nota é contada uma única vez nos custos."
-        actions={<Button variant="primary" onClick={() => navigate('/entradas/importar')}><FileUp className="size-4" aria-hidden /> Importar XML</Button>}
+        actions={<>
+          <SyncEmailButton />
+          <Button variant="primary" onClick={() => navigate('/entradas/importar')}><FileUp className="size-4" aria-hidden /> Importar XML</Button>
+        </>}
       />
 
       <InboxCard />

@@ -1,13 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Copy, KeyRound, Mail } from 'lucide-react'
+import { Copy, KeyRound, Mail, RefreshCw } from 'lucide-react'
 import { useState } from 'react'
-import { Badge, Button, Card, ErrorState, Field, Input, Spinner, Textarea } from '@/components/ui'
+import { Badge, Button, Card, ErrorState, Field, Input, Spinner, Textarea, cn } from '@/components/ui'
 import { useToast } from '@/components/ui/toast'
 import { useAuth } from '@/app/auth'
 import { formatCnpj, formatDateTime } from '@/lib/format'
 import { listSuppliers } from './api'
 import { friendlyDbError } from '@/lib/supabase'
-import { createIntegrationToken, listIntegrationTokens, revokeIntegrationToken } from '@/modules/invoices/api'
+import { createIntegrationToken, describeSync, getSyncSettings, listIntegrationTokens, revokeIntegrationToken, saveSetting, syncGmail } from '@/modules/invoices/api'
 import { gmailScript } from './appsScript'
 
 const ENDPOINT = `${import.meta.env.VITE_SUPABASE_URL as string}/functions/v1/receber-xml`
@@ -19,13 +19,34 @@ export function IntegrationsTab() {
   const toast = useToast()
   const tokens = useQuery({ queryKey: ['integration-tokens'], queryFn: listIntegrationTokens, enabled: isAdmin })
   const suppliers = useQuery({ queryKey: ['suppliers'], queryFn: () => listSuppliers() })
+  const sync = useQuery({ queryKey: ['sync-settings'], queryFn: getSyncSettings })
   const [name, setName] = useState('Gmail')
   const [script, setScript] = useState<string | null>(null)
+  const [url, setUrl] = useState<string | null>(null)
+  const [result, setResult] = useState<string | null>(null)
+  const urlValue = url ?? sync.data?.url ?? ''
 
   const create = useMutation({
-    mutationFn: () => createIntegrationToken(name.trim() || 'Gmail'),
-    onSuccess: (token) => { setScript(gmailScript(ENDPOINT, token)); qc.invalidateQueries({ queryKey: ['integration-tokens'] }) },
+    mutationFn: async () => {
+      // segredo novo a cada código gerado: o script só roda quando o sistema manda este segredo
+      const bytes = crypto.getRandomValues(new Uint8Array(24))
+      const secret = Array.from(bytes).map((b) => b.toString(16).padStart(2, '0')).join('')
+      const token = await createIntegrationToken(name.trim() || 'Gmail')
+      await saveSetting('gmail_sync_secret', secret)
+      return gmailScript(ENDPOINT, token, secret)
+    },
+    onSuccess: (code) => { setScript(code); qc.invalidateQueries({ queryKey: ['integration-tokens'] }); qc.invalidateQueries({ queryKey: ['sync-settings'] }) },
     onError: (e: Error) => toast(friendlyDbError(e), 'bad'),
+  })
+  const saveUrl = useMutation({
+    mutationFn: () => saveSetting('gmail_sync_url', urlValue.trim()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['sync-settings'] }); setUrl(null); toast('Endereço salvo. Agora clique em Testar sincronização.') },
+    onError: (e: Error) => toast(friendlyDbError(e), 'bad'),
+  })
+  const test = useMutation({
+    mutationFn: async () => syncGmail(await getSyncSettings()),
+    onSuccess: (r) => { setResult(describeSync(r)); qc.invalidateQueries({ queryKey: ['nfe-inbox'] }); qc.invalidateQueries({ queryKey: ['integration-tokens'] }) },
+    onError: (e: Error) => setResult(e.message),
   })
   const revoke = useMutation({
     mutationFn: revokeIntegrationToken,
@@ -44,14 +65,16 @@ export function IntegrationsTab() {
       <Card title="XML das notas pelo Gmail">
         <div className="flex flex-col gap-4 text-sm">
           <p className="text-muted">
-            Um pequeno script roda na <strong className="text-ink">sua conta Google</strong> a cada 15 minutos, procura e-mails com anexo <code>.xml</code> e
-            envia os arquivos para a <strong className="text-ink">caixa de entrada</strong> em Entrada de mercadorias. Nada é gravado sem a sua conferência,
-            e o sistema não tem acesso ao seu e-mail.
+            Um pequeno script fica na <strong className="text-ink">sua conta Google</strong> e só roda quando você clica em <strong className="text-ink">Sincronizar e-mail</strong>
+            {' '}(em Entrada de mercadorias). Ele procura em todo o Gmail — caixa de entrada, marcadores/pastas e arquivados — os e-mails com anexo <code>.xml</code> ou <code>.zip</code>
+            {' '}e envia os XMLs para a <strong className="text-ink">caixa de entrada</strong> do sistema. Nada é gravado sem a sua conferência, e o sistema não tem acesso ao seu e-mail.
           </p>
           <p className="rounded-md bg-sunk px-3 py-2 text-muted">
             <strong className="text-ink">Só entram notas de fornecedores cadastrados</strong> (pelo CNPJ do emitente). XMLs de outras empresas são descartados na hora,
             sem guardar nada. Fornecedor novo: cadastre o CNPJ em Configurações → Fornecedores (ou importe a primeira nota pelo botão Importar XML).
           </p>
+
+          <h3 className="font-semibold">1. Gerar o código</h3>
           {!script ? (
             <div className="flex flex-wrap items-end gap-2">
               <Field label="Nome da chave" htmlFor="tok_name"><Input id="tok_name" className="w-56" value={name} onChange={(e) => setName(e.target.value)} /></Field>
@@ -60,22 +83,48 @@ export function IntegrationsTab() {
           ) : (
             <>
               <div className="rounded-md bg-warn-soft px-3 py-2 text-xs text-warn">
-                O código abaixo contém a chave e <strong>só aparece agora</strong>. Copie e cole no Apps Script. Se perder, gere outra e revogue esta.
+                O código contém a chave e <strong>só aparece agora</strong>. Copie e cole no Apps Script. Se perder, gere outro (e revogue a chave antiga ao lado).
               </div>
               <div className="relative">
-                <Textarea readOnly value={script} className="h-72 font-mono text-xs" aria-label="Código do Apps Script" onFocus={(e) => e.currentTarget.select()} />
+                <Textarea readOnly value={script} className="h-60 font-mono text-xs" aria-label="Código do Apps Script" onFocus={(e) => e.currentTarget.select()} />
                 <Button size="sm" className="absolute top-2 right-2" onClick={copy}><Copy className="size-3.5" aria-hidden /> Copiar</Button>
               </div>
             </>
           )}
-          <ol className="flex list-decimal flex-col gap-1.5 pl-5 text-sm">
-            <li>Abra <a href="https://script.google.com/home/projects/create" target="_blank" rel="noreferrer" className="text-accent hover:underline">script.google.com → Novo projeto</a> com a conta do Gmail que recebe as notas.</li>
-            <li>Apague o conteúdo do editor, cole o código e clique em <strong>Salvar</strong> (ícone de disquete). Dê um nome, por exemplo "Dualshop XML".</li>
-            <li>No menu de funções (ao lado de "Depurar"), escolha <strong>instalar</strong> e clique em <strong>Executar</strong>.</li>
-            <li>O Google vai pedir autorização: escolha a conta → "Avançado" → "Acessar Dualshop XML (não seguro)" → Permitir. O aviso aparece porque o script é seu, não publicado.</li>
-            <li>Pronto: o script roda agora e depois a cada 15 minutos. Os e-mails processados ganham a etiqueta <code>dualshop-xml-enviado</code>.</li>
+
+          <h3 className="font-semibold">2. Colar no Apps Script</h3>
+          <ol className="flex list-decimal flex-col gap-1.5 pl-5">
+            <li>Abra o projeto que você já criou em <a href="https://script.google.com/home" target="_blank" rel="noreferrer" className="text-accent hover:underline">script.google.com</a> (ou crie um novo, com a conta do Gmail que recebe as notas).</li>
+            <li>Apague todo o código antigo, cole o novo e clique em <strong>Salvar</strong>.</li>
+            <li>Na lista de funções (ao lado de "Depurar"), escolha <strong>configurar</strong> e clique em <strong>Executar</strong>. Autorize se o Google pedir
+              (conta → "Avançado" → "Acessar … (não seguro)" → Permitir). Isso desliga a execução automática da versão anterior e faz uma primeira leitura;
+              o resultado aparece no "Registro de execução".</li>
           </ol>
-          <p className="text-xs text-muted">Busca e-mails dos últimos 60 dias. E-mails já processados não são enviados de novo; se cadastrar um fornecedor depois, tire a etiqueta dualshop-xml-enviado do e-mail para reenviar. Notas já importadas aparecem como importadas e não duplicam. XML compactado (.zip) não é lido; nesse caso importe pelo botão Importar XML.</p>
+
+          <h3 className="font-semibold">3. Publicar como app da Web (para o botão funcionar)</h3>
+          <ol className="flex list-decimal flex-col gap-1.5 pl-5">
+            <li>No Apps Script, clique em <strong>Implantar → Nova implantação</strong>.</li>
+            <li>Na engrenagem "Selecione o tipo", escolha <strong>App da Web</strong>. Em <strong>Executar como</strong>, deixe <strong>Eu</strong> (seu e-mail). Em <strong>Quem pode acessar</strong>, escolha <strong>Qualquer pessoa</strong>.</li>
+            <li>Clique em <strong>Implantar</strong> e copie o <strong>URL do app da Web</strong> (termina em <code>/exec</code>). Cole abaixo e salve.</li>
+          </ol>
+          <p className="text-xs text-muted">"Qualquer pessoa" é necessário para o sistema conseguir chamar o script, mas ele só roda se receber o segredo que está no código — quem tiver só o endereço não consegue disparar nada.</p>
+          <div className="flex flex-wrap items-end gap-2">
+            <Field label="URL do app da Web" htmlFor="sync_url" className="min-w-80 flex-1">
+              <Input id="sync_url" value={urlValue} onChange={(e) => setUrl(e.target.value)} placeholder="https://script.google.com/macros/s/…/exec" />
+            </Field>
+            <Button loading={saveUrl.isPending} disabled={!urlValue.trim() || urlValue === sync.data?.url} onClick={() => saveUrl.mutate()}>Salvar endereço</Button>
+          </div>
+
+          <h3 className="font-semibold">4. Testar</h3>
+          <div className="flex flex-wrap items-center gap-3">
+            <Button variant="primary" disabled={!sync.data?.url || !sync.data?.secret} loading={test.isPending} onClick={() => { setResult(null); test.mutate() }}>
+              <RefreshCw className="size-4" aria-hidden /> Testar sincronização
+            </Button>
+            {test.isPending && <span className="text-xs text-muted">Lendo o e-mail… pode levar alguns minutos na primeira vez.</span>}
+          </div>
+          {result && <p className={cn('rounded-md px-3 py-2', test.isError ? 'bg-bad-soft text-bad' : 'bg-accent-soft text-ink')}>{result}</p>}
+          <p className="text-xs text-muted">Lê e-mails dos últimos 90 dias (fora spam e lixeira). E-mails já lidos ganham o marcador <code>dualshop-xml-enviado</code> e não são lidos de novo;
+            se cadastrar um fornecedor depois, tire esse marcador do e-mail e sincronize. Notas já importadas não duplicam.</p>
         </div>
       </Card>
 
