@@ -72,6 +72,7 @@ export async function listShowcase(f: ShowcaseFilters, page: number) {
   else if (f.marketplace) q = q.eq('marketplace_id', f.marketplace)
   if (f.listingStatus) q = q.eq('listing_status', f.listingStatus)
   if (f.productStatus) q = q.eq('product_status', f.productStatus)
+  else q = q.neq('product_status', 'fora_de_linha')
   if (f.brand) q = q.eq('brand', f.brand)
   if (f.supplierId) q = q.eq('main_supplier_id', f.supplierId)
   if (f.collection) q = q.eq('collection', f.collection)

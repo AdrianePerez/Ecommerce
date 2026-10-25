@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { ErrorState, PageHeader, Spinner } from '@/components/ui'
 import { supabase, friendlyDbError } from '@/lib/supabase'
 
-type Indicator = { key: string; label: string; to: string; apply: (q: any) => any }
+type Indicator = { key: string; label: string; to: string; apply: (q: any) => any; discontinued?: boolean }
 
 // Indicadores comerciais disponíveis na fase 1. Os financeiros e de anúncios
 // entram junto com os respectivos módulos.
@@ -14,13 +14,15 @@ const INDICATORS: Indicator[] = [
   { key: 'weight', label: 'Sem peso', to: '/produtos?missingWeight=1', apply: (q) => q.eq('missing_weight', true) },
   { key: 'prep', label: 'Em preparação', to: '/produtos?status=em_preparacao', apply: (q) => q.eq('status', 'em_preparacao') },
   { key: 'ready', label: 'Prontos para publicar', to: '/produtos?status=pronto', apply: (q) => q.eq('status', 'pronto') },
+  { key: 'discontinued', label: 'Fora de linha', to: '/produtos?status=fora_de_linha', apply: (q) => q.eq('status', 'fora_de_linha'), discontinued: true },
 ]
 
 async function loadCounts() {
   const results = await Promise.all(
     INDICATORS.map(async (i) => {
       const base = supabase.from('product_overview').select('id', { count: 'exact', head: true }).is('archived_at', null)
-      const { count, error } = await i.apply(base)
+      // itens fora de linha não entram nas pendências (só no indicador próprio)
+      const { count, error } = await i.apply(i.discontinued ? base : base.neq('status', 'fora_de_linha'))
       if (error) throw error
       return [i.key, count ?? 0] as const
     }),
@@ -36,7 +38,7 @@ export function DashboardPage() {
       {counts.isPending ? <Spinner /> : counts.isError ? (
         <ErrorState message={friendlyDbError(counts.error)} onRetry={() => counts.refetch()} />
       ) : (
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-7">
           {INDICATORS.map((i) => (
             <Link key={i.key} to={i.to} className="rounded-lg border border-line bg-surface p-4 transition-colors hover:border-accent">
               <div className="text-xs text-muted">{i.label}</div>

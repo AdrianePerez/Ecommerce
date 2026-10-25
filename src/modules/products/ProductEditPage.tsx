@@ -205,7 +205,7 @@ function ProductEditor({ product }: { product: Product | null }) {
               <Field label="Ano da coleção" htmlFor="collection_year" error={errors.collection_year?.message}>
                 <Input {...fieldProps('collection_year')} inputMode="numeric" maxLength={4} />
               </Field>
-              <Field label="Status do cadastro" htmlFor="status" error={errors.status?.message}>
+              <Field label="Status do cadastro" htmlFor="status" error={errors.status?.message} hint="Fora de linha: continua cadastrado, mas sai das listas, da vitrine e da precificação.">
                 <Select {...fieldProps('status')}>
                   {PRODUCT_STATUSES.map((s) => <option key={s} value={s}>{PRODUCT_STATUS_LABEL[s]}</option>)}
                 </Select>

@@ -10,6 +10,7 @@ const TONE: Record<ProductStatus, 'neutral' | 'good' | 'warn' | 'bad' | 'accent'
   em_preparacao: 'accent',
   pronto: 'good',
   publicado: 'good',
+  fora_de_linha: 'bad',
   arquivado: 'neutral',
 }
 

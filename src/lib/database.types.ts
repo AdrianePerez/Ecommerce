@@ -4,7 +4,7 @@
 
 export type ProductStatus =
   | 'novo' | 'cadastro_fiscal_pendente' | 'pesquisando' | 'aguardando_revisao'
-  | 'em_preparacao' | 'pronto' | 'publicado' | 'arquivado'
+  | 'em_preparacao' | 'pronto' | 'publicado' | 'fora_de_linha' | 'arquivado'
 export type DataSource = 'manual' | 'nfe' | 'catalogo' | 'pesquisa' | 'ia'
 export type ValidationStatus =
   | 'encontrada' | 'aguardando_revisao' | 'confirmada' | 'rejeitada' | 'divergente' | 'nao_encontrada'

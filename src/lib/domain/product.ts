@@ -11,6 +11,7 @@ export const PRODUCT_STATUS_LABEL: Record<ProductStatus, string> = {
   em_preparacao: 'Em preparação',
   pronto: 'Pronto para publicar',
   publicado: 'Publicado',
+  fora_de_linha: 'Fora de linha',
   arquivado: 'Arquivado',
 }
 

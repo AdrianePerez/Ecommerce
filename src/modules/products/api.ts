@@ -37,7 +37,7 @@ export async function productIdsByIdentifier(term: string): Promise<string[]> {
 }
 
 /** Aplica busca e filtros a uma consulta da view product_overview. */
-async function applyFilters<Q extends { or: (f: string) => Q; eq: (c: string, v: unknown) => Q; is: (c: string, v: null) => Q; gt: (c: string, v: number) => Q; in: (c: string, v: string[]) => Q }>(q: Q, f: ProductFilters): Promise<Q> {
+async function applyFilters<Q extends { or: (f: string) => Q; eq: (c: string, v: unknown) => Q; neq: (c: string, v: unknown) => Q; is: (c: string, v: null) => Q; gt: (c: string, v: number) => Q; in: (c: string, v: string[]) => Q }>(q: Q, f: ProductFilters): Promise<Q> {
   const term = f.search?.trim()
   if (term) {
     const ids = await productIdsByIdentifier(term)
@@ -53,7 +53,11 @@ async function applyFilters<Q extends { or: (f: string) => Q; eq: (c: string, v:
     q = q.in('id', ids.length ? ids : ['00000000-0000-0000-0000-000000000000'])
   }
   if (f.status) q = q.eq('status', f.status)
-  else if (!f.includeArchived) q = q.is('archived_at', null)
+  else if (!f.includeArchived) {
+    q = q.is('archived_at', null)
+    // fora de linha só aparece quando escolhido no filtro (ou ao ver os produtos de uma nota)
+    if (!f.invoiceId) q = q.neq('status', 'fora_de_linha')
+  }
   if (f.brand) q = q.eq('brand', f.brand)
   if (f.collection) q = q.eq('collection', f.collection)
   if (f.supplierId) q = q.eq('main_supplier_id', f.supplierId)

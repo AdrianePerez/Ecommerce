@@ -27,7 +27,12 @@ export function ProductListingsPanel({ product }: { product: Product }) {
 
   return (
     <div className="flex flex-col gap-3">
-      {missing.length > 0 && (
+      {product.status === 'fora_de_linha' ? (
+        <div className="rounded-md bg-sunk px-3 py-2 text-sm text-muted">
+          Produto <strong className="font-medium text-ink">fora de linha</strong>: não recebe anúncio novo.
+          {active.some((l) => l.status === 'publicado') && ' Há anúncio publicado — pause ou encerre no marketplace e arquive aqui.'}
+        </div>
+      ) : missing.length > 0 && (
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-sm text-muted">Sem anúncio em:</span>
           {missing.map((m) => <Button key={m.id} size="sm" onClick={() => setNewFor(m.id)}><Plus className="size-3.5" aria-hidden /> {m.name}</Button>)}
