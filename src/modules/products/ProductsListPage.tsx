@@ -37,6 +37,7 @@ export function ProductsListPage() {
     missingWeight: params.get('missingWeight') === '1',
     missingFiscal: params.get('missingFiscal') === '1',
     invoiceId: params.get('nf') ?? '',
+    includeArchived: params.get('arquivados') === '1',
   }
 
   // Busca com pequeno atraso para não consultar a cada tecla
@@ -119,7 +120,7 @@ export function ProductsListPage() {
           />
         </div>
         <Select aria-label="Status" className="w-48" value={filters.status} onChange={(e) => update({ status: e.target.value })}>
-          <option value="">Todos os status ativos</option>
+          <option value="">{filters.includeArchived ? 'Todos os status' : 'Todos os status ativos'}</option>
           {PRODUCT_STATUSES.map((s) => (
             <option key={s} value={s}>{PRODUCT_STATUS_LABEL[s]}</option>
           ))}
@@ -162,6 +163,11 @@ export function ProductsListPage() {
             </button>
           )
         })}
+        <label className="ml-1 flex cursor-pointer items-center gap-1.5 text-xs text-muted" title="Por padrão, produtos arquivados e fora de linha ficam escondidos">
+          <input type="checkbox" className="size-4 accent-accent" checked={filters.includeArchived}
+            onChange={(e) => update({ arquivados: e.target.checked ? '1' : '' })} />
+          Mostrar arquivados e fora de linha
+        </label>
         {anyFilter && (
           <button
             className="text-xs text-accent hover:underline"
