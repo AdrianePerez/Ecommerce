@@ -258,3 +258,25 @@ export async function listProductHistory(productId: string) {
   if (error) throw error
   return (data ?? []) as AuditLog[]
 }
+
+export type LastPurchase = {
+  product_id: string
+  purchased_at: string
+  unit_price: number
+  unit_ipi: number
+  unit_price_with_ipi: number
+  invoice_id: string
+  invoice_number: string
+}
+
+/** Última compra vigente (preço + IPI por unidade de estoque) dos produtos informados. */
+export async function lastPurchases(productIds: string[]): Promise<Map<string, LastPurchase>> {
+  const out = new Map<string, LastPurchase>()
+  if (!productIds.length) return out
+  const { data, error } = await supabase.from('product_last_purchase')
+    .select('product_id, purchased_at, unit_price, unit_ipi, unit_price_with_ipi, invoice_id, invoice_number')
+    .in('product_id', productIds)
+  if (error) throw error
+  for (const r of (data ?? []) as LastPurchase[]) out.set(r.product_id, r)
+  return out
+}

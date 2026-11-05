@@ -66,6 +66,7 @@ As migrações ficam em `supabase/migrations/` e são aplicadas em ordem:
 13. `20261015220000_app_settings.sql` + `…220100_app_settings_privileges.sql` — `app_settings` (endereço e segredo da sincronização do Gmail).
 14. `20261025090000_product_discontinued.sql` + `…090100_product_discontinued_rules.sql` + `…090200_product_discontinued_privileges.sql` — status de produto **Fora de linha** (monitor de notas e bloqueio de anúncio).
 15. `20261025230000_product_archive_sync.sql` + `…230100_product_archive_sync_privileges.sql` — status Arquivado sempre preenche/limpa `archived_at` (inclusive na alteração em massa).
+16. `20261105090000_product_last_purchase.sql` + `…090100_product_last_purchase_privileges.sql` — view `product_last_purchase` (último preço de compra + IPI por unidade).
 
 ### Edge Functions
 

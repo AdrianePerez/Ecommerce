@@ -3,13 +3,13 @@ import { ImageOff, PencilRuler, Plus, Search, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { Badge, Button, EmptyState, ErrorState, Input, PageHeader, Pagination, Select, Spinner } from '@/components/ui'
-import { formatDate, formatDateTime, formatGrams, formatMmAsCm } from '@/lib/format'
+import { formatBRL, formatDate, formatDateTime, formatGrams, formatMmAsCm } from '@/lib/format'
 import { listInvoiceOptions } from '@/modules/invoices/api'
 import { friendlyDbError } from '@/lib/supabase'
 import { PRODUCT_STATUSES, PRODUCT_STATUS_LABEL } from '@/lib/domain/product'
 import type { ProductOverview, ProductStatus } from '@/lib/database.types'
 import { listSuppliers } from '@/modules/settings/api'
-import { BULK_LIMIT, PAGE_SIZE, listFilterOptions, listProductIds, listProducts, type ProductFilters } from './api'
+import { BULK_LIMIT, PAGE_SIZE, listFilterOptions, lastPurchases, listProductIds, listProducts, type LastPurchase, type ProductFilters } from './api'
 import { BulkEditModal } from './BulkEditModal'
 import { productThumbs, type ProductThumb } from '@/modules/images/api'
 import { StatusBadge } from './StatusBadge'
@@ -71,6 +71,11 @@ export function ProductsListPage() {
     queryFn: () => productThumbs(rowIds),
     enabled: rowIds.length > 0,
     staleTime: 50 * 60 * 1000, // links assinados valem 1 h
+  })
+  const purchases = useQuery({
+    queryKey: ['product-last-purchase', rowIds.join(',')],
+    queryFn: () => lastPurchases(rowIds),
+    enabled: rowIds.length > 0,
   })
   const options = useQuery({ queryKey: ['product-filter-options'], queryFn: listFilterOptions })
   const suppliers = useQuery({ queryKey: ['suppliers'], queryFn: () => listSuppliers() })
@@ -224,13 +229,14 @@ export function ProductsListPage() {
                     <th className="px-3 py-2 font-medium">Marca · Coleção</th>
                     <th className="px-3 py-2 font-medium">Dimensões (A×L×P)</th>
                     <th className="px-3 py-2 font-medium">Peso</th>
+                    <th className="px-3 py-2 text-right font-medium" title="Preço unitário + IPI da última nota de entrada, por unidade de estoque (sem frete)">Últ. compra (c/ IPI)</th>
                     <th className="px-3 py-2 font-medium">Status</th>
                     <th className="px-3 py-2 font-medium">Pendências</th>
                     <th className="px-3 py-2 font-medium">Atualizado</th>
                   </tr>
                 </thead>
                 <tbody className={products.isPlaceholderData ? 'opacity-60' : ''}>
-                  {products.data.rows.map((p) => <Row key={p.id} p={p} thumb={thumbs.data?.get(p.id)} thumbsLoading={thumbs.isPending && thumbs.fetchStatus !== 'idle'} selected={selected.has(p.id)} onSelect={(on) => toggleOne(p.id, on)} />)}
+                  {products.data.rows.map((p) => <Row key={p.id} p={p} purchase={purchases.data?.get(p.id)} purchaseLoading={purchases.isPending && purchases.fetchStatus !== 'idle'} thumb={thumbs.data?.get(p.id)} thumbsLoading={thumbs.isPending && thumbs.fetchStatus !== 'idle'} selected={selected.has(p.id)} onSelect={(on) => toggleOne(p.id, on)} />)}
                 </tbody>
               </table>
             </div>
@@ -244,8 +250,8 @@ export function ProductsListPage() {
   )
 }
 
-function Row({ p, thumb, thumbsLoading, selected, onSelect }: {
-  p: ProductOverview; thumb?: ProductThumb; thumbsLoading: boolean; selected: boolean; onSelect: (on: boolean) => void
+function Row({ p, purchase, purchaseLoading, thumb, thumbsLoading, selected, onSelect }: {
+  p: ProductOverview; purchase?: LastPurchase; purchaseLoading: boolean; thumb?: ProductThumb; thumbsLoading: boolean; selected: boolean; onSelect: (on: boolean) => void
 }) {
   const dims = p.missing_dimensions
     ? null
@@ -279,6 +285,16 @@ function Row({ p, thumb, thumbsLoading, selected, onSelect }: {
       </td>
       <td className="tabular px-3 py-2.5 whitespace-nowrap">{dims ?? <Badge tone="warn">Falta</Badge>}</td>
       <td className="tabular px-3 py-2.5 whitespace-nowrap">{p.missing_weight ? <Badge tone="warn">Falta</Badge> : formatGrams(p.weight_g)}</td>
+      <td className="tabular px-3 py-2.5 text-right whitespace-nowrap">
+        {purchase ? (
+          <span title={`Preço ${formatBRL(purchase.unit_price)} + IPI ${formatBRL(purchase.unit_ipi)} por unidade`}>
+            <div className="font-medium">{formatBRL(purchase.unit_price_with_ipi)}</div>
+            <Link to={`/entradas/${purchase.invoice_id}`} className="text-xs text-muted hover:text-accent hover:underline">
+              NF {purchase.invoice_number} · {formatDate(purchase.purchased_at)}
+            </Link>
+          </span>
+        ) : <span className="text-muted">{purchaseLoading ? '…' : '—'}</span>}
+      </td>
       <td className="px-3 py-2.5"><StatusBadge status={p.status} /></td>
       <td className="px-3 py-2.5">
         {p.missing_count === 0 ? <Badge tone="good">Completo</Badge> : <Badge tone="warn">{p.missing_count} {p.missing_count === 1 ? 'item' : 'itens'}</Badge>}
