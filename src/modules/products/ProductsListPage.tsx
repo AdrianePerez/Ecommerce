@@ -2,6 +2,7 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { ImageOff, PencilRuler, Plus, Search, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { RestoreFilters, saveFilters } from '@/lib/savedFilters'
 import { Badge, Button, EmptyState, ErrorState, Input, PageHeader, Pagination, Select, Spinner } from '@/components/ui'
 import { formatBRL, formatDate, formatDateTime, formatGrams, formatMmAsCm } from '@/lib/format'
 import { listInvoiceOptions } from '@/modules/invoices/api'
@@ -21,8 +22,14 @@ const FLAG_FILTERS = [
   { key: 'missingFiscal', label: 'Sem NCM' },
 ] as const
 
+/** Abre a lista com os últimos filtros usados (quando o endereço chega sem filtros). */
 export function ProductsListPage() {
+  return <RestoreFilters storageKey="produtos"><ProductsList /></RestoreFilters>
+}
+
+function ProductsList() {
   const [params, setParams] = useSearchParams()
+  useEffect(() => { saveFilters('produtos', params) }, [params])
   const navigate = useNavigate()
   const page = Number(params.get('p') ?? 0)
 
