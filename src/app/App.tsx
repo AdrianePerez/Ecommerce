@@ -1,6 +1,7 @@
 import { GalleryPage } from '@/modules/images/GalleryPage'
 import { PricingPage } from '@/modules/pricing/PricingPage'
 import { ShowcasePage } from '@/modules/showcase/ShowcasePage'
+import { LabelsPrintPage } from '@/modules/labels/LabelsPrintPage'
 import { ListingsPage } from '@/modules/listings/ListingsPage'
 import { ListingEditPage } from '@/modules/listings/ListingEditPage'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -70,6 +71,7 @@ export default function App() {
               <Route path="/login" element={<LoginPage />} />
               <Route path="/recuperar-senha" element={<ForgotPasswordPage />} />
               <Route path="/redefinir-senha" element={<ResetPasswordPage />} />
+              <Route path="/etiquetas" element={<RequireAuth><LabelsPrintPage /></RequireAuth>} />
               <Route element={<RequireAuth><AppLayout /></RequireAuth>}>
                 <Route index element={<DashboardPage />} />
                 <Route path="produtos" element={<ProductsListPage />} />

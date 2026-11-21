@@ -1,5 +1,5 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
-import { ImageOff, PencilRuler, Plus, Search, X } from 'lucide-react'
+import { ImageOff, PencilRuler, Plus, Printer, Search, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { RestoreFilters, saveFilters } from '@/lib/savedFilters'
@@ -12,6 +12,7 @@ import type { ProductOverview, ProductStatus } from '@/lib/database.types'
 import { listSuppliers } from '@/modules/settings/api'
 import { BULK_LIMIT, PAGE_SIZE, listFilterOptions, lastPurchases, listProductIds, listProducts, type LastPurchase, type ProductFilters } from './api'
 import { BulkEditModal } from './BulkEditModal'
+import { LabelsModal } from '@/modules/labels/LabelsModal'
 import { productThumbs, type ProductThumb } from '@/modules/images/api'
 import { StatusBadge } from './StatusBadge'
 
@@ -93,6 +94,7 @@ function ProductsList() {
   // Seleção para alteração em massa (mantida ao trocar de página)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [bulkOpen, setBulkOpen] = useState(false)
+  const [labelsOpen, setLabelsOpen] = useState(false)
   const [selectingAll, setSelectingAll] = useState(false)
   const pageIds = products.data?.rows.map((r) => r.id) ?? []
   const allPageSelected = pageIds.length > 0 && pageIds.every((id) => selected.has(id))
@@ -200,6 +202,7 @@ function ProductsList() {
           )}
           <div className="ml-auto flex gap-2">
             <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}><X className="size-4" aria-hidden /> Limpar seleção</Button>
+            <Button size="sm" onClick={() => setLabelsOpen(true)}><Printer className="size-4" aria-hidden /> Imprimir etiquetas</Button>
             <Button size="sm" variant="primary" onClick={() => setBulkOpen(true)}><PencilRuler className="size-4" aria-hidden /> Alterar em massa</Button>
           </div>
         </div>
@@ -251,6 +254,7 @@ function ProductsList() {
           </>
         )}
       </div>
+      <LabelsModal open={labelsOpen} ids={[...selected]} onClose={() => setLabelsOpen(false)} />
       <BulkEditModal open={bulkOpen} ids={[...selected]} onClose={() => setBulkOpen(false)}
         onDone={() => { setBulkOpen(false); setSelected(new Set()) }} />
     </>
