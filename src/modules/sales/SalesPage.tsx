@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowDown, ArrowUp, FileSpreadsheet, ImageOff, Link2, Upload } from 'lucide-react'
+import { ArrowDown, ArrowUp, FileSpreadsheet, ImageOff, Link2, Search, Upload, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Badge, Button, Card, EmptyState, ErrorState, Input, Modal, PageHeader, Select, Spinner, cn } from '@/components/ui'
@@ -12,7 +12,7 @@ import { MonthlyChart } from '@/modules/invoices/MonthlyChart'
 import { ProductPicker } from '@/modules/invoices/ProductPicker'
 import { CHANNEL_LABEL, importSales, linkSku, listImports, listSales, productInfo, type Channel } from './api'
 import { parseMlSales, type ParseResult } from './mlReport'
-import { monthlyGross, summarize, type ProductLine } from './summary'
+import { monthlyGross, summarize, textMatcher, type ProductLine } from './summary'
 
 export function SalesPage() {
   return <RestoreFilters storageKey="vendas"><Sales /></RestoreFilters>
@@ -50,6 +50,8 @@ function Sales() {
   const to = preset === 'personalizado' ? params.get('ate') ?? '' : pt
   const channel = (params.get('canal') ?? '') as Channel | ''
   const sort = (params.get('ord') ?? 'units') as SortKey
+  const q = params.get('q') ?? ''
+  const [searchText, setSearchText] = useState(q)
   const set = (patch: Record<string, string>) => setParams((p) => {
     const n = new URLSearchParams(p)
     for (const [k, v] of Object.entries(patch)) { if (v) n.set(k, v); else n.delete(k) }
@@ -61,9 +63,24 @@ function Sales() {
   const info = useQuery({ queryKey: ['sales-products', productIds.join(',')], queryFn: () => productInfo(productIds), enabled: productIds.length > 0 })
   const imports = useQuery({ queryKey: ['sales-imports'], queryFn: listImports })
 
+  useEffect(() => {
+    const t = setTimeout(() => { if (searchText.trim() !== q) set({ q: searchText.trim() }) }, 300)
+    return () => clearTimeout(t)
+  }, [searchText]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // busca pela descrição do produto (ou título do anúncio, se sem vínculo) e SKU — filtra também os totais e o gráfico
+  const filtered = useMemo(() => {
+    const m = textMatcher(q)
+    if (!m || !sales.data) return sales.data ?? []
+    return sales.data.filter((s) => {
+      const p = s.product_id ? info.data?.get(s.product_id) : undefined
+      // produto ligado: busca na descrição do cadastro (o título do anúncio de kit cita os outros itens: "Mochila … + Lancheira")
+      return m((p ? [p.name, p.sku, s.sku] : [s.title, s.sku]).filter(Boolean).join(' '))
+    })
+  }, [sales.data, info.data, q])
   const costMap = useMemo(() => new Map([...(info.data?.values() ?? [])].filter((p) => p.unitCost !== null).map((p) => [p.id, p.unitCost as number])), [info.data])
-  const summary = useMemo(() => summarize(sales.data ?? [], costMap), [sales.data, costMap])
-  const months = useMemo(() => monthlyGross(sales.data ?? []), [sales.data])
+  const summary = useMemo(() => summarize(filtered, costMap), [filtered, costMap])
+  const months = useMemo(() => monthlyGross(filtered), [filtered])
   const lines = useMemo(() => {
     const v = (l: ProductLine) => sort === 'marginPct' ? pctOf(l.margin, l.gross) ?? -Infinity : sort === 'margin' ? l.margin ?? -Infinity : l[sort]
     return [...summary.lines].sort((a, b) => v(b) - v(a) || b.gross - a.gross)
@@ -115,6 +132,15 @@ function Sales() {
         </>} />
 
       <div className="mb-4 flex flex-wrap items-end gap-2">
+        <div className="relative w-full max-w-sm">
+          <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted" aria-hidden />
+          <Input aria-label="Buscar por descrição ou SKU" className="pr-8 pl-9" placeholder="Buscar descrição ou SKU (ex.: mochila, sonic -rodas)"
+            value={searchText} onChange={(e) => setSearchText(e.target.value)} />
+          {searchText && (
+            <button className="absolute top-1/2 right-2 -translate-y-1/2 rounded p-1 text-muted hover:text-ink" aria-label="Limpar busca"
+              onClick={() => { setSearchText(''); set({ q: '' }) }}><X className="size-3.5" /></button>
+          )}
+        </div>
         <Select aria-label="Período" className="w-48" value={preset} onChange={(e) => {
           const v = e.target.value
           if (v === 'personalizado') { const [a, b] = presetRange(preset); set({ periodo: v, de: a || from, ate: b || to || today() }) } else set({ periodo: v, de: '', ate: '' })
@@ -139,6 +165,19 @@ function Sales() {
           action={<Button variant="primary" onClick={() => fileRef.current?.click()}><Upload className="size-4" aria-hidden /> Importar relatório</Button>} />
       ) : (
         <>
+          <div className="mb-4 flex flex-wrap items-center gap-2 text-xs">
+            <span className="text-muted">Atalhos:</span>
+            {['Mochila', 'Mochila rodas', 'Lancheira', 'Estojo'].map((w) => (
+              <button key={w} className={cn('rounded-full border px-3 py-1', q.toLowerCase() === w.toLowerCase() ? 'border-accent bg-accent-soft text-ink' : 'border-line bg-surface text-muted hover:text-ink')}
+                onClick={() => { const v = q.toLowerCase() === w.toLowerCase() ? '' : w.toLowerCase(); setSearchText(v); set({ q: v }) }}>{w}</button>
+            ))}
+            {q && <span className="text-muted">· mostrando só o que contém <strong className="text-ink">“{q}”</strong> — os totais e o gráfico seguem a busca</span>}
+          </div>
+          {q && !filtered.length && (
+            <EmptyState title="Nada encontrado" description={<>Nenhuma venda no período com “{q}” na descrição ou no SKU.</>}
+              action={<Button onClick={() => { setSearchText(''); set({ q: '' }) }}>Limpar busca</Button>} />
+          )}
+          {(!q || filtered.length > 0) && <>
           {unlinked.length > 0 && (
             <div className="mb-4 rounded-lg border border-warn/40 bg-warn-soft px-4 py-2.5 text-sm text-warn">
               <strong>{unlinked.length} {unlinked.length === 1 ? 'SKU vendido não está ligado' : 'SKUs vendidos não estão ligados'} a um produto</strong> — sem o vínculo, ficam sem foto, custo e margem.
@@ -221,6 +260,7 @@ function Sales() {
             Canceladas não entram. Devolvidas contam à parte; o que o marketplace cobrou nelas entra no líquido. Custo = custo médio atual do produto (notas de entrada) × unidades vendidas.
             A margem ainda não desconta imposto sobre a venda nem embalagem.
           </p>
+          </>}
         </>
       )}
 

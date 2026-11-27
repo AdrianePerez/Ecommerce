@@ -37,3 +37,14 @@ describe('painel de vendas', () => {
     expect(m.map((x) => [x.label, x.total, x.count])).toEqual([['ago/26', 100, 1], ['set/26', 0, 0], ['out/26', 0, 0], ['nov/26', 300, 2]])
   })
 })
+
+import { textMatcher } from './summary'
+describe('busca por descrição', () => {
+  it('todas as palavras, sem acento/maiúscula, com exclusão', () => {
+    const m = textMatcher('mochila  sônic -rodas')!
+    expect(m('MOCHILA JUVENIL SONIC AZUL')).toBe(true)
+    expect(m('MOCHILA COM RODAS JUVENIL SONIC AZUL')).toBe(false)
+    expect(m('LANCHEIRA SONIC')).toBe(false)
+    expect(textMatcher('   ')).toBeNull()
+  })
+})

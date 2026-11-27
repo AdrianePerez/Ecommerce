@@ -112,3 +112,17 @@ export function monthlyGross(sales: SaleFact[]): MonthPoint[] {
   }
   return out
 }
+
+const norm = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+
+/**
+ * Busca por descrição: todas as palavras precisam aparecer (sem diferenciar acento/maiúscula);
+ * palavra com "-" na frente exclui (ex.: "mochila -rodas").
+ */
+export function textMatcher(query: string): ((text: string) => boolean) | null {
+  const words = norm(query).split(/\s+/).filter(Boolean)
+  const inc = words.filter((w) => !w.startsWith('-'))
+  const exc = words.filter((w) => w.startsWith('-') && w.length > 1).map((w) => w.slice(1))
+  if (!inc.length && !exc.length) return null
+  return (text) => { const t = norm(text); return inc.every((w) => t.includes(w)) && !exc.some((w) => t.includes(w)) }
+}
