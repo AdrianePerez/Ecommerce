@@ -15,14 +15,16 @@ export function niceMax(v: number) {
 }
 
 /** Barras por mês, uma série (o título nomeia a medida). Passe o mouse para ver o valor. */
-export function MonthlyChart({ data, height = 220 }: { data: MonthPoint[]; height?: number }) {
+export function MonthlyChart({ data, height = 220, what = 'Valor das entradas', countLabel = (n: number) => `${n} nota(s)` }: {
+  data: MonthPoint[]; height?: number; what?: string; countLabel?: (n: number) => string
+}) {
   const [hover, setHover] = useState<number | null>(null)
   const max = niceMax(Math.max(0, ...data.map((d) => d.total)))
   const ticks = [0, 0.25, 0.5, 0.75, 1].map((f) => f * max)
   const best = data.reduce((b, d, i) => (d.total > (data[b]?.total ?? -1) ? i : b), 0)
 
   return (
-    <div className="flex gap-2" role="img" aria-label={`Valor das entradas por mês: ${data.map((d) => `${d.label} ${formatBRL(d.total)}`).join('; ')}`}>
+    <div className="flex gap-2" role="img" aria-label={`${what} por mês: ${data.map((d) => `${d.label} ${formatBRL(d.total)}`).join('; ')}`}>
       {/* eixo de valores */}
       <div className="relative w-20 shrink-0 text-right text-[11px] whitespace-nowrap text-muted" style={{ height }}>
         {ticks.map((t) => (
@@ -44,7 +46,7 @@ export function MonthlyChart({ data, height = 220 }: { data: MonthPoint[]; heigh
               return (
                 <div key={d.key} className="relative flex h-full flex-1 items-end justify-center"
                   onMouseEnter={() => setHover(i)} onFocus={() => setHover(i)} onBlur={() => setHover(null)} tabIndex={0}
-                  aria-label={`${d.label}: ${formatBRL(d.total)}, ${d.count} nota(s)`}>
+                  aria-label={`${d.label}: ${formatBRL(d.total)}, ${countLabel(d.count)}`}>
                   <div className={cn('w-full max-w-10 rounded-t-[4px] transition-opacity', hover !== null && hover !== i ? 'opacity-45' : '')}
                     style={{ height: `${h}%`, minHeight: d.total > 0 ? 2 : 0, background: 'var(--color-accent)' }} />
                   {i === best && d.total > 0 && hover === null && (
@@ -57,7 +59,7 @@ export function MonthlyChart({ data, height = 220 }: { data: MonthPoint[]; heigh
                       style={{ bottom: `${Math.min(h, 80)}%`, ...(i > data.length / 2 ? { right: 0 } : { left: 0 }) }}>
                       <div className="font-medium">{d.label}</div>
                       <div className="tabular">{formatBRL(d.total)}</div>
-                      <div className="text-muted">{d.count} nota(s)</div>
+                      <div className="text-muted">{countLabel(d.count)}</div>
                     </div>
                   )}
                 </div>

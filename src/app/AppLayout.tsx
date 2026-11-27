@@ -1,7 +1,7 @@
 import { clsx } from 'clsx'
 import {
   BarChart3, BookOpen, Boxes, CalendarDays, Calculator, Images, LayoutDashboard, LogOut, Menu,
-  PackageOpen, Settings, Store, Wand2, X,
+  PackageOpen, Settings, Store, TrendingUp, Wand2, X,
 } from 'lucide-react'
 import { useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
@@ -24,6 +24,7 @@ export const NAV: NavItem[] = [
   { to: '/imagens', label: 'Galeria de imagens', icon: Images },
   { to: '/precificacao', label: 'Precificação', icon: Calculator },
   { to: '/vitrine', label: 'Vitrine de anúncios', icon: Store },
+  { to: '/vendas', label: 'Vendas', icon: TrendingUp },
   { to: '/financeiro', label: 'Financeiro', icon: CalendarDays, phase: 6 },
   { to: '/configuracoes', label: 'Configurações', icon: Settings },
 ]

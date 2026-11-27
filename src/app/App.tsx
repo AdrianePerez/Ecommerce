@@ -2,6 +2,7 @@ import { GalleryPage } from '@/modules/images/GalleryPage'
 import { PricingPage } from '@/modules/pricing/PricingPage'
 import { ShowcasePage } from '@/modules/showcase/ShowcasePage'
 import { LabelsPrintPage } from '@/modules/labels/LabelsPrintPage'
+import { SalesPage } from '@/modules/sales/SalesPage'
 import { ListingsPage } from '@/modules/listings/ListingsPage'
 import { ListingEditPage } from '@/modules/listings/ListingEditPage'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -89,6 +90,7 @@ export default function App() {
                 <Route path="imagens" element={<GalleryPage />} />
                 <Route path="precificacao" element={<PricingPage />} />
                 <Route path="vitrine" element={<ShowcasePage />} />
+                <Route path="vendas" element={<SalesPage />} />
                 <Route path="configuracoes" element={<SettingsPage />} />
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Route>
