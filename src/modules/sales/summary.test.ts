@@ -48,3 +48,13 @@ describe('busca por descrição', () => {
     expect(textMatcher('   ')).toBeNull()
   })
 })
+
+describe('simulação de imposto e embalagem', () => {
+  it('desconta % do bruto e R$ por unidade do que sobrou', () => {
+    const { lines, totals } = summarize([sale({ units: 2, gross_revenue: 200, net_total: 130 }), sale({ product_id: null, sku: 'X', gross_revenue: 100, net_total: 60 })],
+      new Map([['p1', 40]]), { taxPct: 7.68, packaging: 2 })
+    const a = lines.find((l) => l.productId === 'p1')!
+    expect(a).toMatchObject({ tax: 15.36, packaging: 4, cost: 80, margin: 30.64 })
+    expect(totals).toMatchObject({ tax: 23.04, packaging: 6, margin: 30.64, costCoveredGross: 200 })
+  })
+})

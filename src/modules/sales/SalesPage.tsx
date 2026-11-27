@@ -10,6 +10,7 @@ import { friendlyDbError } from '@/lib/supabase'
 import { readFirstSheet } from '@/lib/xlsx'
 import { MonthlyChart } from '@/modules/invoices/MonthlyChart'
 import { ProductPicker } from '@/modules/invoices/ProductPicker'
+import { listPricingRules } from '@/modules/pricing/api'
 import { CHANNEL_LABEL, importSales, linkSku, listImports, listSales, productInfo, type Channel } from './api'
 import { parseMlSales, type ParseResult } from './mlReport'
 import { monthlyGross, summarize, textMatcher, type ProductLine } from './summary'
@@ -51,6 +52,14 @@ function Sales() {
   const channel = (params.get('canal') ?? '') as Channel | ''
   const sort = (params.get('ord') ?? 'units') as SortKey
   const q = params.get('q') ?? ''
+  // simulação: padrão = regra de precificação ativa do Mercado Livre; o campo permite testar outros valores
+  const rules = useQuery({ queryKey: ['pricing-rules', 'active'], queryFn: () => listPricingRules({ activeOnly: true }) })
+  const mlRule = rules.data?.find((r) => r.marketplace.code === 'mercado_livre')
+  const defTax = mlRule ? Number(mlRule.tax_pct) : 0
+  const defPack = mlRule ? Number(mlRule.packaging_cost) : 0
+  const parse = (v: string | null) => { if (v === null || v.trim() === '') return null; const n = Number(v.replace(',', '.')); return Number.isFinite(n) && n >= 0 ? n : null }
+  const taxPct = Math.min(parse(params.get('imp')) ?? defTax, 100)
+  const packaging = parse(params.get('emb')) ?? defPack
   const [searchText, setSearchText] = useState(q)
   const set = (patch: Record<string, string>) => setParams((p) => {
     const n = new URLSearchParams(p)
@@ -79,7 +88,7 @@ function Sales() {
     })
   }, [sales.data, info.data, q])
   const costMap = useMemo(() => new Map([...(info.data?.values() ?? [])].filter((p) => p.unitCost !== null).map((p) => [p.id, p.unitCost as number])), [info.data])
-  const summary = useMemo(() => summarize(filtered, costMap), [filtered, costMap])
+  const summary = useMemo(() => summarize(filtered, costMap, { taxPct, packaging }), [filtered, costMap, taxPct, packaging])
   const months = useMemo(() => monthlyGross(filtered), [filtered])
   const lines = useMemo(() => {
     const v = (l: ProductLine) => sort === 'marginPct' ? pctOf(l.margin, l.gross) ?? -Infinity : sort === 'margin' ? l.margin ?? -Infinity : l[sort]
@@ -173,6 +182,8 @@ function Sales() {
             ))}
             {q && <span className="text-muted">· mostrando só o que contém <strong className="text-ink">“{q}”</strong> — os totais e o gráfico seguem a busca</span>}
           </div>
+          <SimulationBar taxPct={taxPct} packaging={packaging} isDefault={!params.get('imp') && !params.get('emb')} hasRule={!!mlRule}
+            onChange={(imp, emb) => set({ imp, emb })} />
           {q && !filtered.length && (
             <EmptyState title="Nada encontrado" description={<>Nenhuma venda no período com “{q}” na descrição ou no SKU.</>}
               action={<Button onClick={() => { setSearchText(''); set({ q: '' }) }}>Limpar busca</Button>} />
@@ -185,15 +196,17 @@ function Sales() {
             </div>
           )}
 
-          <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+          <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-7">
             <Kpi label="Unidades vendidas" value={t.units.toLocaleString('pt-BR')} hint={`${t.orders} ${t.orders === 1 ? 'pedido' : 'pedidos'}`} />
             <Kpi label="Faturamento bruto" value={formatBRL(t.gross)} hint={t.orders ? `ticket médio ${formatBRL(t.gross / t.orders)}` : undefined} />
             <Kpi label="Líquido recebido" value={formatBRL(t.net)} hint={t.gross > 0 ? `${pctText((t.net / t.gross) * 100)} do bruto` : undefined}
               title="O que o marketplace repassa: bruto − tarifas − frete − reembolsos + bônus" />
             <Kpi label="Tarifas e frete" value={formatBRL(t.fees + t.shipping)} hint={`tarifas ${formatBRL(t.fees)} · frete ${formatBRL(t.shipping)}`} />
-            <Kpi label="Margem estimada" value={t.margin === null ? '—' : formatBRL(t.margin)} tone={t.margin === null ? undefined : t.margin >= 0 ? 'good' : 'bad'}
-              hint={t.margin === null ? 'sem custo dos produtos' : `${pctText(marginPct)} do bruto${t.unitsWithoutCost ? ` · ${t.unitsWithoutCost} un. sem custo` : ''}`}
-              title="Líquido recebido − custo médio atual × unidades. Não inclui imposto sobre a venda nem embalagem." />
+            <Kpi label="Imposto e embalagem" value={formatBRL(-(t.tax + t.packaging))}
+              hint={`imposto ${fmtNum(taxPct)}% ${formatBRL(t.tax)} · emb. ${formatBRL(t.packaging)}`} title="Simulação: % de imposto sobre o faturamento bruto + embalagem por unidade" />
+            <Kpi label="Sobrou (lucro estimado)" value={t.margin === null ? '—' : formatBRL(t.margin)} tone={t.margin === null ? undefined : t.margin >= 0 ? 'good' : 'bad'}
+              hint={t.margin === null ? 'sem custo dos produtos' : `${pctText(marginPct)} do bruto${t.unitsWithoutCost ? ` · ${t.unitsWithoutCost} un. sem custo (fora)` : ''}`}
+              title="Líquido recebido − custo médio × unidades − imposto − embalagem. Produtos sem custo ficam fora desta conta." />
             <Kpi label="Devoluções" value={t.returned.toLocaleString('pt-BR')} hint={t.cancelled ? `${t.cancelled} un. canceladas (fora das contas)` : 'unidades devolvidas'} />
           </div>
 
@@ -204,7 +217,7 @@ function Sales() {
           )}
 
           <div className="overflow-x-auto rounded-lg border border-line bg-surface">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm [&_td.tabular]:whitespace-nowrap">
               <thead className="bg-sunk text-left text-xs text-muted">
                 <tr>
                   <th className="w-14 px-3 py-2" />
@@ -215,8 +228,9 @@ function Sales() {
                   <th className="px-3 py-2 text-right font-medium">Preço médio</th>
                   <SortTh k="net" sort={sort} set={set}>Líquido</SortTh>
                   <th className="px-3 py-2 text-right font-medium" title="Custo médio atual por unidade">Custo un.</th>
-                  <SortTh k="margin" sort={sort} set={set}>Margem</SortTh>
-                  <SortTh k="marginPct" sort={sort} set={set}>Margem %</SortTh>
+                  <th className="px-3 py-2 text-right font-medium" title="Imposto simulado + embalagem">Imp. + emb.</th>
+                  <SortTh k="margin" sort={sort} set={set}>Sobrou</SortTh>
+                  <SortTh k="marginPct" sort={sort} set={set}>Sobrou %</SortTh>
                   <th className="px-3 py-2 text-right font-medium" title="Participação no faturamento do período">% fat.</th>
                 </tr>
               </thead>
@@ -247,6 +261,7 @@ function Sales() {
                       <td className="tabular px-3 py-2 text-right text-muted">{l.units ? formatBRL(l.gross / l.units) : '—'}</td>
                       <td className="tabular px-3 py-2 text-right">{formatBRL(l.net)}</td>
                       <td className="tabular px-3 py-2 text-right text-muted">{l.unitCost === null ? (l.productId ? <span title="Produto sem entrada de nota">sem custo</span> : '—') : formatBRL(l.unitCost)}</td>
+                      <td className="tabular px-3 py-2 text-right whitespace-nowrap text-muted">{l.tax + l.packaging ? formatBRL(-(l.tax + l.packaging)) : '—'}</td>
                       <td className={cn('tabular px-3 py-2 text-right', l.margin !== null && (l.margin >= 0 ? 'text-good' : 'text-bad'))}>{l.margin === null ? '—' : formatBRL(l.margin)}</td>
                       <td className="tabular px-3 py-2 text-right">{pctText(mp)}</td>
                       <td className="tabular px-3 py-2 text-right text-muted">{pctText(pctOf(l.gross, t.gross))}</td>
@@ -258,7 +273,7 @@ function Sales() {
           </div>
           <p className="mt-2 text-xs text-muted">
             Canceladas não entram. Devolvidas contam à parte; o que o marketplace cobrou nelas entra no líquido. Custo = custo médio atual do produto (notas de entrada) × unidades vendidas.
-            A margem ainda não desconta imposto sobre a venda nem embalagem.
+            Sobrou = líquido − custo − imposto (simulado, % sobre o faturamento bruto) − embalagem por unidade. Não inclui outras despesas fixas (aluguel, salários, anúncios pagos).
           </p>
           </>}
         </>
@@ -334,5 +349,40 @@ function ImportPreview({ preview, loading, onCancel, onConfirm }: { preview: { n
         </div>
       )}
     </Modal>
+  )
+}
+
+const fmtNum = (n: number) => n.toLocaleString('pt-BR', { maximumFractionDigits: 3 })
+
+/** Campos de simulação: imposto (%) sobre o faturamento e embalagem (R$ por unidade). */
+function SimulationBar({ taxPct, packaging, isDefault, hasRule, onChange }: {
+  taxPct: number; packaging: number; isDefault: boolean; hasRule: boolean; onChange: (imp: string, emb: string) => void
+}) {
+  const [tax, setTax] = useState(fmtNum(taxPct))
+  const [pack, setPack] = useState(packaging.toFixed(2).replace('.', ','))
+  useEffect(() => { setTax(fmtNum(taxPct)) }, [taxPct])
+  useEffect(() => { setPack(packaging.toFixed(2).replace('.', ',')) }, [packaging])
+  const commit = () => { if (tax.trim() !== fmtNum(taxPct) || pack.trim() !== packaging.toFixed(2).replace('.', ',')) onChange(tax.trim(), pack.trim()) }
+  return (
+    <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border border-line bg-surface px-4 py-2.5 text-sm">
+      <strong className="font-medium">Simulação</strong>
+      <label className="flex items-center gap-2">
+        <span className="text-muted">Imposto sobre a venda</span>
+        <Input inputMode="decimal" aria-label="Imposto sobre a venda (%)" className="w-20 text-right" value={tax}
+          onChange={(e) => setTax(e.target.value)} onBlur={commit} onKeyDown={(e) => e.key === 'Enter' && commit()} />
+        <span className="text-muted">% do bruto</span>
+      </label>
+      <label className="flex items-center gap-2">
+        <span className="text-muted">Embalagem</span>
+        <span className="text-muted">R$</span>
+        <Input inputMode="decimal" aria-label="Embalagem por unidade (R$)" className="w-20 text-right" value={pack}
+          onChange={(e) => setPack(e.target.value)} onBlur={commit} onKeyDown={(e) => e.key === 'Enter' && commit()} />
+        <span className="text-muted">por unidade</span>
+      </label>
+      <span className="text-xs text-muted">
+        {isDefault ? (hasRule ? 'Valores da regra de precificação do Mercado Livre.' : 'Preencha imposto e embalagem na regra de precificação para virar o padrão.')
+          : <button className="text-accent hover:underline" onClick={() => onChange('', '')}>Voltar ao padrão da regra de precificação</button>}
+      </span>
+    </div>
   )
 }

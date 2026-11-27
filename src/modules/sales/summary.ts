@@ -29,14 +29,19 @@ export type ProductLine = {
   shipping: number
   unitCost: number | null
   cost: number | null
+  tax: number
+  packaging: number
   margin: number | null
   orders: number
 }
 
+/** Simulação: imposto sobre o faturamento bruto (%) e embalagem por unidade vendida (R$). */
+export type Simulation = { taxPct: number; packaging: number }
+
 export type Totals = {
   units: number; returned: number; cancelled: number; orders: number
   gross: number; net: number; fees: number; shipping: number
-  cost: number; costCoveredGross: number; margin: number | null; unitsWithoutCost: number
+  cost: number; tax: number; packaging: number; costCoveredGross: number; margin: number | null; unitsWithoutCost: number
 }
 
 const r2 = (n: number) => Math.round(n * 100) / 100
@@ -46,8 +51,10 @@ const keyOf = (s: SaleFact) => (s.product_id ? `p:${s.product_id}` : s.sku ? `s:
  * Regras: canceladas não contam. Vendidas = unidades das vendas ativas.
  * Devolvidas contam à parte (unidades), e o valor que sobrou delas (normalmente zero
  * ou negativo, por tarifas) entra no líquido. Custo = unidades vendidas × custo médio atual.
+ * Imposto = % sobre o faturamento bruto das vendidas; embalagem = R$ por unidade vendida.
+ * Margem (o que sobrou) = líquido − custo − imposto − embalagem; só existe com custo conhecido.
  */
-export function summarize(sales: SaleFact[], unitCost: Map<string, number>) {
+export function summarize(sales: SaleFact[], unitCost: Map<string, number>, sim: Simulation = { taxPct: 0, packaging: 0 }) {
   const lines = new Map<string, ProductLine & { orderSet: Set<string> }>()
   const orderSet = new Set<string>()
   let cancelled = 0
@@ -57,7 +64,7 @@ export function summarize(sales: SaleFact[], unitCost: Map<string, number>) {
     let l = lines.get(k)
     if (!l) {
       l = { key: k, productId: s.product_id, sku: s.sku, title: s.title, units: 0, returned: 0, gross: 0, net: 0, fees: 0, shipping: 0,
-        unitCost: s.product_id ? unitCost.get(s.product_id) ?? null : null, cost: null, margin: null, orders: 0, orderSet: new Set() }
+        unitCost: s.product_id ? unitCost.get(s.product_id) ?? null : null, cost: null, tax: 0, packaging: 0, margin: null, orders: 0, orderSet: new Set() }
       lines.set(k, l)
     }
     l.net += s.net_total
@@ -70,20 +77,23 @@ export function summarize(sales: SaleFact[], unitCost: Map<string, number>) {
     orderSet.add(s.pack_id ?? s.order_id)
   }
   const out: ProductLine[] = []
-  const t: Totals = { units: 0, returned: 0, cancelled, orders: orderSet.size, gross: 0, net: 0, fees: 0, shipping: 0, cost: 0, costCoveredGross: 0, margin: null, unitsWithoutCost: 0 }
+  const t: Totals = { units: 0, returned: 0, cancelled, orders: orderSet.size, gross: 0, net: 0, fees: 0, shipping: 0, cost: 0, tax: 0, packaging: 0, costCoveredGross: 0, margin: null, unitsWithoutCost: 0 }
   let marginSum = 0
   for (const { orderSet: os, ...l } of lines.values()) {
     l.orders = os.size
     l.gross = r2(l.gross); l.net = r2(l.net); l.fees = r2(l.fees); l.shipping = r2(l.shipping)
+    l.tax = r2((l.gross * sim.taxPct) / 100)
+    l.packaging = r2(l.units * sim.packaging)
+    t.tax += l.tax; t.packaging += l.packaging
     if (l.unitCost !== null) {
       l.cost = r2(l.unitCost * l.units)
-      l.margin = r2(l.net - l.cost)
+      l.margin = r2(l.net - l.cost - l.tax - l.packaging)
       t.cost += l.cost; marginSum += l.margin; t.costCoveredGross += l.gross
     } else if (l.units > 0) t.unitsWithoutCost += l.units
     t.units += l.units; t.returned += l.returned; t.gross += l.gross; t.net += l.net; t.fees += l.fees; t.shipping += l.shipping
     out.push(l)
   }
-  t.gross = r2(t.gross); t.net = r2(t.net); t.fees = r2(t.fees); t.shipping = r2(t.shipping); t.cost = r2(t.cost); t.costCoveredGross = r2(t.costCoveredGross)
+  t.gross = r2(t.gross); t.net = r2(t.net); t.fees = r2(t.fees); t.shipping = r2(t.shipping); t.cost = r2(t.cost); t.tax = r2(t.tax); t.packaging = r2(t.packaging); t.costCoveredGross = r2(t.costCoveredGross)
   t.margin = t.costCoveredGross > 0 ? r2(marginSum) : null
   return { lines: out, totals: t }
 }
