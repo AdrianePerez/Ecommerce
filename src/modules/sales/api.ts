@@ -11,6 +11,8 @@ export type ImportResult = { import_id: string; novas: number; atualizadas: numb
 export async function importSales(channel: Channel, fileName: string, rows: SaleRow[]): Promise<ImportResult> {
   const { data, error } = await supabase.rpc('import_sales', { p_channel: channel, p_file_name: fileName, p_rows: rows })
   if (error) throw error
+  // revisa vendas antigas ainda sem produto (produto cadastrado ou vínculo feito depois)
+  await supabase.rpc('rematch_sales')
   return data as ImportResult
 }
 

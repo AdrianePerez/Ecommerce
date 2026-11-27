@@ -68,6 +68,7 @@ As migrações ficam em `supabase/migrations/` e são aplicadas em ordem:
 15. `20261025230000_product_archive_sync.sql` + `…230100_product_archive_sync_privileges.sql` — status Arquivado sempre preenche/limpa `archived_at` (inclusive na alteração em massa).
 16. `20261105090000_product_last_purchase.sql` + `…090100_product_last_purchase_privileges.sql` — view `product_last_purchase` (último preço de compra + IPI por unidade).
 17. `20261127090000_sales.sql` + `…090100_sales_privileges.sql` — vendas importadas dos marketplaces (`sales`, `sales_imports`, `import_sales`, `link_sales_sku`).
+18. `20261127100000_sales_match_ean_prefix.sql` + `…100100_sales_match_ean_prefix_privileges.sql` — SKU que começa com o EAN (ex.: `EAN-AZ`) liga pelo EAN; `rematch_sales` revisa vendas sem produto.
 
 ### Edge Functions
 
